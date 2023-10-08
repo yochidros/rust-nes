@@ -1,10 +1,12 @@
+use crate::flags::*;
+use crate::mem::Mem;
 use crate::opscodes::*;
 
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
-    pub status: u8,
+    pub status: StatusFlags,
     pub program_counter: u16,
 
     memory: [u8; 0xffff],
@@ -16,45 +18,13 @@ impl CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: 0,
+            status: StatusFlags::from_bits_truncate(0b100100),
             program_counter: 0,
             memory: [0; 0xffff],
         }
     }
-
-    // pub fn load_and_run(&mut self, program: Vec<u8>) {
-    //     self.program_counter = 0;
-    //     loop {
-    //         let ops_code = program[self.program_counter as usize];
-    //         self.program_counter += 1;
-    //
-    //         match ops_code {
-    //             0x00 => {
-    //                 // BRK break
-    //                 return;
-    //             }
-    //             0xA9 => {
-    //                 // LDA (immediate) load data
-    //                 let param = program[self.program_counter as usize];
-    //                 self.lda(param);
-    //                 self.program_counter += 1;
-    //                 self.update_zero_and_negative_flags(self.register_a);
-    //             }
-    //             0xAA => {
-    //                 // TAX  transfer Accumulator to X
-    //                 self.tax(self.register_a);
-    //                 self.update_zero_and_negative_flags(self.register_x);
-    //             }
-    //             0xe8 => {
-    //                 // Increment X Register
-    //                 self.inx();
-    //                 self.update_zero_and_negative_flags(self.register_x);
-    //             }
-    //             _ => todo!(),
-    //         }
-    //     }
-    // }
-    //
+}
+impl AddressingModeConverter for CPU {
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
@@ -100,27 +70,19 @@ impl CPU {
             }
         }
     }
-    // memory
+}
+
+// memory
+impl Mem for CPU {
     fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
     fn mem_write(&mut self, addr: u16, data: u8) {
         self.memory[addr as usize] = data;
     }
+}
 
-    fn mem_read_u16(&self, pos: u16) -> u16 {
-        let lo_bits = self.mem_read(pos) as u16;
-        let hi_bits = self.mem_read(pos + 1) as u16;
-        (hi_bits << 8) | lo_bits
-    }
-
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi_bits = (data >> 8) as u8;
-        let lo_bits = (data & 0xff) as u8;
-        self.mem_write(pos, lo_bits);
-        self.mem_write(pos + 1, hi_bits);
-    }
-
+impl CPU {
     pub fn load_and_run(&mut self, program: Vec<u8>) {
         // launch or inserting new cartridge, then reset program ROM address state.
         self.load(program);
@@ -171,11 +133,14 @@ impl CPU {
             }
         }
     }
+}
+
+impl CPU {
     pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
-        self.status = 0;
+        self.status = StatusFlags::from_bits_truncate(0b100100);
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -203,32 +168,27 @@ impl CPU {
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr); // M
-        println!("address: {:x} value: {}", addr, value);
         let a = self.register_a as u16; // A
         let sum = a + value as u16;
-        let has_carry = (self.status & 0b0000_0001) == 1;
-        println!("has_carry: {}", has_carry);
+        let has_carry = self.status.contains(StatusFlags::CARRY);
         let sum_with_carry = if has_carry { sum + 1 } else { sum + 0 };
         let is_overflow = sum_with_carry > 0xff;
-        println!("is_overflow: {}", is_overflow);
-        println!("value: {:b}", sum_with_carry);
-        if is_overflow {
+        self.status = if is_overflow {
             // set carry flag
-            self.status = self.status | 0b0000_0001;
+            self.status | StatusFlags::CARRY
         } else {
-            self.status = self.status & !0b0000_0001;
-        }
+            self.status & !StatusFlags::CARRY
+        };
         let sum_with_carry_u8 = sum_with_carry as u8;
         // ^ XOR check is negative value (0x80: is Negative)
         // ex: 1000_0001 ^ 0110_0010 => 1110_0011 & 1000_000 => 1000_0000
         let is_negative = (sum_with_carry_u8 ^ self.register_a) & 0x80 != 0;
-        println!("is_negative: {}", is_negative);
-        if is_negative {
+        self.status = if is_negative {
             // set overflow flag
-            self.status = self.status | 0b0100_0000;
+            self.status | StatusFlags::OVERFLOW
         } else {
-            self.status = self.status & !0b0100_0000;
-        }
+            self.status & !StatusFlags::OVERFLOW
+        };
         self.register_a = sum_with_carry as u8;
     }
 
@@ -243,15 +203,16 @@ impl CPU {
     // C: Carry
     fn update_zero_and_negative_flags(&mut self, value: u8) {
         self.status = if value == 0 {
-            self.status | 0b0000_0010
+            self.status | StatusFlags::ZERO
         } else {
-            self.status & 0b1111_1101
+            self.status & !StatusFlags::ZERO
         };
-        if value & 0b1000_0000 != 0 {
-            self.status = self.status | 0b1000_0000;
+        self.status = if value & 0b1000_0000 != 0 {
+            // replace self.status.insert(NEGATIVE);
+            self.status | StatusFlags::NEGATIVE
         } else {
-            self.status = self.status & 0b0111_1111;
-        }
+            self.status & !StatusFlags::NEGATIVE
+        };
     }
 }
 
@@ -264,8 +225,8 @@ mod test {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xA9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
-        assert!(cpu.status & 0b0000_0010 == 0b00);
-        assert!(cpu.status & 0b1000_0000 == 0b00);
+        assert_eq!(cpu.status.bits() & StatusFlags::ZERO.bits(), 0b00);
+        assert!(cpu.status.bits() & StatusFlags::NEGATIVE.bits() == 0b00);
     }
 
     #[test]
@@ -273,7 +234,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xA9, 0x00, 0x00]);
         assert_eq!(cpu.register_a, 0x00);
-        assert!(cpu.status & 0b0000_0010 == 0b10);
+        assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
     }
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
@@ -311,7 +272,7 @@ mod test {
         cpu.register_a = 0x01;
         cpu.mem_write(0x8001, 0x01);
         cpu.run();
-        assert_eq!(cpu.status & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
         assert_eq!(cpu.register_a, 0x2);
     }
     #[test]
@@ -319,11 +280,11 @@ mod test {
         let mut cpu = CPU::new();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
-        cpu.status = 0b0000_0001;
+        cpu.status = StatusFlags::CARRY;
         cpu.register_a = 0x01;
         cpu.mem_write(0x8001, 0x01);
         cpu.run();
-        assert_eq!(cpu.status & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
         assert_eq!(cpu.register_a, 0x3);
     }
 
@@ -337,7 +298,7 @@ mod test {
         cpu.run();
         // is carry flag is true
         // 0000_0000 ^ 0000_0001 = 0000_0001 & 1000_0000
-        assert_eq!(cpu.status & 0b0000_0001, 1);
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
         assert_eq!(cpu.register_a, 0x0);
     }
 
@@ -347,11 +308,11 @@ mod test {
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0x7f;
-        cpu.status = 0b0000_0001;
+        cpu.status = StatusFlags::CARRY;
         cpu.mem_write(0x8001, 0x7f);
         cpu.run();
-        assert_eq!(cpu.status & 0b0000_0001, 0);
-        assert_eq!(cpu.status & 0b0100_0000, 0x40);
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0x40);
         assert_eq!(cpu.register_a, 0xff);
     }
 
@@ -361,7 +322,7 @@ mod test {
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0x50;
-        cpu.status = 0b0000_0000;
+        cpu.status = StatusFlags::from_bits_truncate(0b00000000);
         cpu.mem_write(0x8001, 0x90);
         cpu.run();
         assert_eq!(cpu.register_a, 0xe0);
@@ -373,13 +334,13 @@ mod test {
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0b0101_0000; //80
-        cpu.status = 0b0000_0000;
+        cpu.status = StatusFlags::from_bits_truncate(0b00000000);
         cpu.mem_write(0x8001, 0b1111_0000); // -112
         cpu.run();
         // 0101_0000 + 1111_0000 = 1_0100_0000 => 0100_0000 cast as u8
         // occur overflow not negative value
-        assert_eq!(cpu.status & 0b0000_0001, 1);
-        assert_eq!(cpu.status & 0b0100_0000, 0x0);
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0x0);
         assert_eq!(cpu.register_a, 0x40);
     }
 }

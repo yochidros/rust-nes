@@ -15,6 +15,9 @@ pub enum AddressingMode {
     Indirect_Y,
     NonAddressing,
 }
+pub trait AddressingModeConverter {
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16;
+}
 
 pub struct OpCode {
     pub name: &'static str,
