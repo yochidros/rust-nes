@@ -1,7 +1,9 @@
 mod cpu;
-use crate::cpu::*;
+mod opscodes;
+
+use cpu::*;
+use opscodes::*;
 
 fn main() {
-    CPU::new().interpret(vec![0xA9, 0x01]);
     println!("Hello, world!");
 }
