@@ -48,6 +48,18 @@ impl OpCode {
 pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
     vec![
         OpCode::new("BRK", 0x00, 1, 7, AddressingMode::NonAddressing),
+        // BCS
+        OpCode::new("BCS", 0xb0, 2, 2, AddressingMode::NonAddressing),
+        // BCC
+        OpCode::new("BCC", 0x90, 2, 2, AddressingMode::NonAddressing),
+        // BEQ
+        OpCode::new("BEQ", 0xf0, 2, 2, AddressingMode::NonAddressing),
+        // BNE
+        OpCode::new("BNE", 0xd0, 2, 2, AddressingMode::NonAddressing),
+        // TSX
+        OpCode::new("TSX", 0xba, 1, 2, AddressingMode::NonAddressing),
+        // TXS
+        OpCode::new("TXS", 0x9a, 1, 2, AddressingMode::NonAddressing),
         // INC
         OpCode::new("INC", 0xe6, 2, 5, AddressingMode::ZeroPage),
         OpCode::new("INC", 0xf6, 2, 6, AddressingMode::ZeroPage_X),
@@ -57,10 +69,40 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("INX", 0xe8, 1, 2, AddressingMode::NonAddressing),
         // INY
         OpCode::new("INY", 0xc8, 1, 2, AddressingMode::NonAddressing),
+        // DEC
+        OpCode::new("DEC", 0xc6, 2, 5, AddressingMode::ZeroPage),
+        OpCode::new("DEC", 0xd6, 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new("DEC", 0xce, 3, 6, AddressingMode::Absolute),
+        OpCode::new("DEC", 0xde, 3, 7, AddressingMode::Absolute_X),
+        // DEX
+        OpCode::new("DEX", 0xca, 1, 2, AddressingMode::NonAddressing),
+        // DEY
+        OpCode::new("DEY", 0x88, 1, 2, AddressingMode::NonAddressing),
+        // CMP
+        OpCode::new("CMP", 0xc9, 2, 2, AddressingMode::Immediate),
+        OpCode::new("CMP", 0xc5, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("CMP", 0xd5, 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new("CMP", 0xcd, 3, 4, AddressingMode::Absolute),
+        OpCode::new("CMP", 0xdd, 3, 4, AddressingMode::Absolute_X),
+        OpCode::new("CMP", 0xd9, 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new("CMP", 0xc1, 2, 6, AddressingMode::Indirect_X),
+        OpCode::new("CMP", 0xd1, 2, 5, AddressingMode::Indirect_Y),
+        // CPX
+        OpCode::new("CPX", 0xe0, 2, 2, AddressingMode::Immediate),
+        OpCode::new("CPX", 0xe4, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("CPX", 0xec, 3, 4, AddressingMode::Absolute),
+        // Cpy
+        OpCode::new("CPY", 0xc0, 2, 2, AddressingMode::Immediate),
+        OpCode::new("CPY", 0xc4, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("CPY", 0xcc, 3, 4, AddressingMode::Absolute),
         // TAX
         OpCode::new("TAX", 0xaa, 1, 2, AddressingMode::NonAddressing),
         // TXA
         OpCode::new("TXA", 0x8a, 1, 2, AddressingMode::NonAddressing),
+        // TAY
+        OpCode::new("TAY", 0xa8, 1, 2, AddressingMode::NonAddressing),
+        // TYA
+        OpCode::new("TYA", 0x98, 1, 2, AddressingMode::NonAddressing),
         // LDA
         OpCode::new("LDA", 0xa9, 2, 2, AddressingMode::Immediate),
         OpCode::new("LDA", 0xa5, 2, 3, AddressingMode::ZeroPage),

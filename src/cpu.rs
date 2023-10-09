@@ -8,6 +8,7 @@ pub struct CPU {
     pub register_y: u8,
     pub status: StatusFlags,
     pub program_counter: u16,
+    pub stack_pointer: u8,
 
     memory: [u8; 0xffff],
 }
@@ -21,6 +22,7 @@ impl CPU {
             register_y: 0,
             status: StatusFlags::from_bits_truncate(0b100100),
             program_counter: 0,
+            stack_pointer: 0,
             memory: [0; 0xffff],
         }
     }
@@ -127,6 +129,16 @@ impl CPU {
                     self.txa();
                     self.update_zero_and_negative_flags(self.register_a);
                 }
+                // TAY
+                0xA8 => {
+                    self.tay();
+                    self.update_zero_and_negative_flags(self.register_y);
+                }
+                // TYA
+                0x98 => {
+                    self.tya();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
                 // INC
                 0xe6 | 0xf6 | 0xee | 0xfe => {
                     self.inc(&opcode.mode);
@@ -139,6 +151,60 @@ impl CPU {
                 0xc8 => {
                     self.iny();
                     self.update_zero_and_negative_flags(self.register_y);
+                }
+                // DEC
+                0xc6 | 0xd6 | 0xce | 0xde => {
+                    self.dec(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                // DEX
+                0xca => {
+                    self.dex();
+                    self.update_zero_and_negative_flags(self.register_x);
+                }
+                // DEY
+                0x88 => {
+                    self.dey();
+                    self.update_zero_and_negative_flags(self.register_y);
+                }
+                // BCS
+                0xb0 => {
+                    self.branch(self.status.contains(StatusFlags::CARRY));
+                }
+                // BCC
+                0x90 => {
+                    self.branch(!self.status.contains(StatusFlags::CARRY));
+                }
+                // BEQ
+                0xf0 => {
+                    self.branch(self.status.contains(StatusFlags::ZERO));
+                }
+                // BNE
+                0xd0 => {
+                    self.branch(!self.status.contains(StatusFlags::ZERO));
+                }
+                // TSX
+                0xba => {
+                    self.tsx();
+                    self.update_zero_and_negative_flags(self.register_x);
+                }
+                // TXS
+                0x9a => {
+                    self.txs();
+                }
+                // JMP
+                0x4c | 0x6c => {
+                    self.jmp();
+                }
+                // CMP
+                0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
+                    self.cmp(&opcode.mode);
+                }
+                0xe0 | 0xe4 | 0xec => {
+                    self.cpx(&opcode.mode);
+                }
+                0xc0 | 0xc4 | 0xcc => {
+                    self.cpy(&opcode.mode);
                 }
                 /* STA */
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
@@ -261,6 +327,17 @@ impl CPU {
     fn txa(&mut self) {
         self.register_a = self.register_x;
     }
+    fn tay(&mut self) {
+        self.register_y = self.register_a;
+    }
+    fn tya(&mut self) {
+        self.register_a = self.register_y;
+    }
+
+    fn jmp(&mut self) {
+        let addr = self.mem_read_u16(self.program_counter);
+        self.program_counter = addr;
+    }
 
     fn inc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
@@ -272,6 +349,94 @@ impl CPU {
     }
     fn iny(&mut self) {
         self.register_y = self.register_y.wrapping_add(1);
+    }
+    fn dec(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.mem_write(addr, value.wrapping_sub(1));
+    }
+    fn dex(&mut self) {
+        self.register_x = self.register_x.wrapping_sub(1);
+    }
+    fn dey(&mut self) {
+        self.register_y = self.register_y.wrapping_sub(1);
+    }
+    fn tsx(&mut self) {
+        self.register_x = self.stack_pointer;
+    }
+    fn txs(&mut self) {
+        self.stack_pointer = self.register_x;
+    }
+    fn cmp(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let result = self.register_a.wrapping_sub(value);
+        self.status = if self.register_a >= value {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        self.status = if self.register_a == value {
+            self.status | StatusFlags::ZERO
+        } else {
+            self.status & !StatusFlags::ZERO
+        };
+        self.status = if result & StatusFlags::NEGATIVE.bits() > 0 {
+            self.status | StatusFlags::NEGATIVE
+        } else {
+            self.status & !StatusFlags::NEGATIVE
+        };
+    }
+
+    fn cpx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let result = self.register_x.wrapping_sub(value);
+        self.status = if self.register_x >= value {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        self.status = if self.register_x == value {
+            self.status | StatusFlags::ZERO
+        } else {
+            self.status & !StatusFlags::ZERO
+        };
+        self.status = if result & StatusFlags::NEGATIVE.bits() > 0 {
+            self.status | StatusFlags::NEGATIVE
+        } else {
+            self.status & !StatusFlags::NEGATIVE
+        };
+    }
+    fn cpy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let result = self.register_y.wrapping_sub(value);
+        self.status = if self.register_y >= value {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        self.status = if self.register_y == value {
+            self.status | StatusFlags::ZERO
+        } else {
+            self.status & !StatusFlags::ZERO
+        };
+        self.status = if result & StatusFlags::NEGATIVE.bits() > 0 {
+            self.status | StatusFlags::NEGATIVE
+        } else {
+            self.status & !StatusFlags::NEGATIVE
+        };
+    }
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let offset = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(offset as u16);
+            self.program_counter = jump_addr;
+        }
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
