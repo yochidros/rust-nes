@@ -145,6 +145,10 @@ impl CPU {
                     self.ora(&opcode.mode);
                     self.update_zero_and_negative_flags(self.register_a);
                 }
+                /* BIT */
+                0x24 | 0x2c => {
+                    self.bit(&opcode.mode);
+                }
                 // BRK break
                 0x00 => return,
                 _ => todo!(),
@@ -265,6 +269,29 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr); // M
         self.register_a = self.register_a | value;
+    }
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        println!("register_a: {:04x}", self.program_counter);
+        println!("addr: {:04x}", addr);
+        let value = self.mem_read(addr); // M
+        let result = self.register_a & value;
+        println!("{}, {} result: {:08b}", self.register_a, value, result);
+        self.status = if result == 0 {
+            self.status | StatusFlags::ZERO
+        } else {
+            self.status & !StatusFlags::ZERO
+        };
+        self.status = if value & StatusFlags::OVERFLOW.bits() > 0 {
+            self.status | StatusFlags::OVERFLOW
+        } else {
+            self.status & !StatusFlags::OVERFLOW
+        };
+        self.status = if value & StatusFlags::NEGATIVE.bits() > 0 {
+            self.status | StatusFlags::NEGATIVE
+        } else {
+            self.status & !StatusFlags::NEGATIVE
+        };
     }
     // NVRB_DIZC (R 予約済み　使用できない)
     // N: negative
@@ -563,5 +590,59 @@ mod test {
         cpu.register_a = 0x08;
         cpu.run();
         assert_eq!(cpu.register_a, 0x18);
+    }
+    #[test]
+    fn test_bit_all_false() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x24, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x01, 0x01);
+        cpu.register_a = 0x01;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0010, 0);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0);
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0);
+    }
+    #[test]
+    fn test_bit_zero_true() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x24, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x01, 0x00);
+        cpu.register_a = 0x01;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0010, 0b10);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0);
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0);
+    }
+    #[test]
+    fn test_bit_zero_true_overflow_true() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x24, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x01, 0x42);
+        cpu.register_a = 0x01;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0010, 0b10);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0);
+        assert_eq!(
+            cpu.status.bits() & 0b0100_0000,
+            StatusFlags::OVERFLOW.bits()
+        );
+    }
+    #[test]
+    fn test_bit_zero_true_overflow_true_negative_true() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x24, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x01, 0xC2);
+        cpu.register_a = 0x01;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0010, 0b10);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0b1000_0000);
+        assert_eq!(
+            cpu.status.bits() & 0b0100_0000,
+            StatusFlags::OVERFLOW.bits()
+        );
     }
 }

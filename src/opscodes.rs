@@ -112,6 +112,9 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("ORA", 0x19, 3, 4, AddressingMode::Absolute_Y),
         OpCode::new("ORA", 0x01, 2, 6, AddressingMode::Indirect_X),
         OpCode::new("ORA", 0x11, 2, 5, AddressingMode::Indirect_Y),
+        // BIT
+        OpCode::new("BIT", 0x24, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("BIT", 0x2c, 3, 4, AddressingMode::Absolute),
     ]
 });
 pub static OPCODES_MAP: Lazy<HashMap<u8, &'static OpCode>> = Lazy::new(|| {
