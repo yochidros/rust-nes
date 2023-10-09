@@ -149,8 +149,10 @@ impl CPU {
                 0x24 | 0x2c => {
                     self.bit(&opcode.mode);
                 }
-                // BRK break
-                0x00 => return,
+                0x00 => {
+                    self.brk();
+                    break;
+                }
                 _ => todo!(),
             }
             if program_counter_state == self.program_counter {
@@ -165,7 +167,7 @@ impl CPU {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
-        self.status = StatusFlags::from_bits_truncate(0b100100);
+        self.status = StatusFlags::from_bits_truncate(0b0010_0100);
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -292,6 +294,10 @@ impl CPU {
         } else {
             self.status & !StatusFlags::NEGATIVE
         };
+    }
+
+    fn brk(&mut self) {
+        self.status = self.status | StatusFlags::BREAK;
     }
     // NVRB_DIZC (R 予約済み　使用できない)
     // N: negative
@@ -644,5 +650,13 @@ mod test {
             cpu.status.bits() & 0b0100_0000,
             StatusFlags::OVERFLOW.bits()
         );
+    }
+    #[test]
+    fn test_brk() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0001_0000, StatusFlags::BREAK.bits());
     }
 }
