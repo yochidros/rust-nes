@@ -13,6 +13,7 @@ pub struct CPU {
 }
 
 impl CPU {
+    #[allow(dead_code)]
     pub fn new() -> CPU {
         CPU {
             register_a: 0,
@@ -72,7 +73,7 @@ impl AddressingModeConverter for CPU {
     }
 }
 
-// memory
+// Memory
 impl Mem for CPU {
     fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
@@ -170,6 +171,7 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
     }
+
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr); // M
@@ -201,11 +203,10 @@ impl CPU {
     fn sbc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr); // M
-        println!("register_a: {}, value: {}", self.register_a, value);
-        // A - M - (1 - C)
-        // = A - M - 1 + C
-        // = A - (M + 1) + C
-        // = A + (-M + -1) + C
+                                         // A - M - (1 - C)
+                                         // = A - M - 1 + C
+                                         // = A - (M + 1) + C
+                                         // = A + (-M + -1) + C
         let a = self.register_a as u16; // A
         let b = (value as i8).wrapping_neg().wrapping_sub(1) as u8;
         let sum_with_carry = if self.status.contains(StatusFlags::CARRY) {
@@ -213,9 +214,7 @@ impl CPU {
         } else {
             a.wrapping_add(b as u16)
         };
-        println!("sum_with_carry: {:b} {:b} {:b}", a, b, sum_with_carry);
         let is_overflow = sum_with_carry > 0xff;
-        println!("is_overflow: {}", is_overflow);
         self.status = if is_overflow {
             // set carry flag
             self.status | StatusFlags::CARRY
