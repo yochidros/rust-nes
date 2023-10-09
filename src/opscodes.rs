@@ -90,6 +90,14 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("STA", 0x99, 3, 5, AddressingMode::Absolute_Y),
         OpCode::new("STA", 0x81, 2, 6, AddressingMode::Indirect_X),
         OpCode::new("STA", 0x91, 2, 6, AddressingMode::Indirect_Y),
+        // STX
+        OpCode::new("STX", 0x86, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("STX", 0x96, 2, 4, AddressingMode::ZeroPage_Y),
+        OpCode::new("STX", 0x8e, 3, 4, AddressingMode::Absolute),
+        // STY
+        OpCode::new("STY", 0x84, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("STY", 0x94, 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new("STY", 0x8c, 3, 4, AddressingMode::Absolute),
         // ADC
         OpCode::new("ADC", 0x69, 2, 2, AddressingMode::Immediate),
         OpCode::new("ADC", 0x65, 2, 3, AddressingMode::ZeroPage),

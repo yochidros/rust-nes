@@ -144,6 +144,14 @@ impl CPU {
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
                 }
+                /* STX */
+                0x86 | 0x96 | 0x8e => {
+                    self.stx(&opcode.mode);
+                }
+                /* STY */
+                0x84 | 0x94 | 0x8c => {
+                    self.sty(&opcode.mode);
+                }
                 /* ADC */
                 0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => {
                     self.adc(&opcode.mode);
@@ -269,6 +277,14 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
+    }
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_x);
+    }
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_y);
     }
 
     fn adc(&mut self, mode: &AddressingMode) {
