@@ -76,6 +76,15 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("ADC", 0x79, 3, 4, AddressingMode::Absolute_Y),
         OpCode::new("ADC", 0x61, 2, 6, AddressingMode::Indirect_X),
         OpCode::new("ADC", 0x71, 2, 5, AddressingMode::Indirect_Y),
+        // SBC
+        OpCode::new("SBC", 0xe9, 2, 2, AddressingMode::Immediate),
+        OpCode::new("SBC", 0xe5, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("SBC", 0xf5, 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new("SBC", 0xed, 3, 4, AddressingMode::Absolute),
+        OpCode::new("SBC", 0xfd, 3, 4, AddressingMode::Absolute_X),
+        OpCode::new("SBC", 0xf9, 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new("SBC", 0xe1, 2, 6, AddressingMode::Indirect_X),
+        OpCode::new("SBC", 0xf1, 2, 5, AddressingMode::Indirect_Y),
     ]
 });
 pub static OPCODES_MAP: Lazy<HashMap<u8, &'static OpCode>> = Lazy::new(|| {

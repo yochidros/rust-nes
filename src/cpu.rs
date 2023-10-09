@@ -124,6 +124,11 @@ impl CPU {
                     self.adc(&opcode.mode);
                     self.update_zero_and_negative_flags(self.register_a);
                 }
+                /* SBC */
+                0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
+                    self.sbc(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
                 // BRK break
                 0x00 => return,
                 _ => todo!(),
@@ -182,7 +187,8 @@ impl CPU {
         let sum_with_carry_u8 = sum_with_carry as u8;
         // ^ XOR check is negative value (0x80: is Negative)
         // ex: 1000_0001 ^ 0110_0010 => 1110_0011 & 1000_000 => 1000_0000
-        let is_negative = (sum_with_carry_u8 ^ self.register_a) & 0x80 != 0;
+        let is_negative =
+            (value ^ sum_with_carry_u8) & (sum_with_carry_u8 ^ self.register_a) & 0x80 != 0;
         self.status = if is_negative {
             // set overflow flag
             self.status | StatusFlags::OVERFLOW
@@ -192,6 +198,45 @@ impl CPU {
         self.register_a = sum_with_carry as u8;
     }
 
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr); // M
+        println!("register_a: {}, value: {}", self.register_a, value);
+        // A - M - (1 - C)
+        // = A - M - 1 + C
+        // = A - (M + 1) + C
+        // = A + (-M + -1) + C
+        let a = self.register_a as u16; // A
+        let b = (value as i8).wrapping_neg().wrapping_sub(1) as u8;
+        let sum_with_carry = if self.status.contains(StatusFlags::CARRY) {
+            a.wrapping_add(b as u16).wrapping_add(1)
+        } else {
+            a.wrapping_add(b as u16)
+        };
+        println!("sum_with_carry: {:b} {:b} {:b}", a, b, sum_with_carry);
+        let is_overflow = sum_with_carry > 0xff;
+        println!("is_overflow: {}", is_overflow);
+        self.status = if is_overflow {
+            // set carry flag
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let sum_with_carry_u8 = sum_with_carry as u8;
+        // ^ XOR check is negative value (0x80: is Negative)
+        // ex: 0000_0001 ^ 1000_0001 = 1000_0000
+        // 1000_0001 ^ 0110_0010 => 1110_0011 & 1000_000 => 1000_0000
+        // 1000_0000 & 1000_0000 & 1000_0000
+        let is_negative =
+            (b as u8 ^ sum_with_carry_u8) & (sum_with_carry_u8 ^ self.register_a) & 0x80 != 0;
+        self.status = if is_negative {
+            // set overflow flag
+            self.status | StatusFlags::OVERFLOW
+        } else {
+            self.status & !StatusFlags::OVERFLOW
+        };
+        self.register_a = sum_with_carry as u8;
+    }
     // NVRB_DIZC (R 予約済み　使用できない)
     // N: negative
     // V: overflow
@@ -342,5 +387,124 @@ mod test {
         assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
         assert_eq!(cpu.status.bits() & 0b0100_0000, 0x0);
         assert_eq!(cpu.register_a, 0x40);
+    }
+    #[test]
+    fn test_sbc_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x20;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
+        assert_eq!(cpu.register_a, 0x0f);
+    }
+
+    #[test]
+    fn test_sbc_from_memory_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x20;
+        cpu.status = StatusFlags::CARRY;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
+        assert_eq!(cpu.register_a, 0x10);
+    }
+
+    #[test]
+    fn test_sbc_from_memory_overflow() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x00, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x0;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0000, 0);
+        assert_eq!(cpu.register_a, 0xff);
+    }
+    #[test]
+    fn test_sbc_from_memory_overflow_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x00, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x0;
+        cpu.status = StatusFlags::CARRY;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0000, 0);
+        assert_eq!(cpu.register_a, 0x0);
+    }
+    #[test]
+    fn test_sbc_from_memory_with_minus() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0xf0, 0x00]); // decimal: -112
+        cpu.reset();
+        cpu.register_a = 0x00; // decimal: 80
+                               // 0 - (70) = -70
+        cpu.run();
+        // 0101_0000 + 1111_0000 = 1_0100_0000 => 0100_0000 cast as u8
+        // occur overflow not negative value
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0x0);
+        assert_eq!(cpu.register_a, 0x0f);
+    }
+
+    #[test]
+    fn test_sbc_from_memory_with_minus_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0xf0, 0x00]); // decimal: -70
+        cpu.reset();
+        cpu.register_a = 0xf0; // decimal: -70
+        cpu.status = StatusFlags::CARRY;
+        cpu.run();
+        // 0101_0000 + 1111_0000 = 1_0100_0000 => 0100_0000 cast as u8
+        // occur overflow not negative value
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0x0);
+        assert_eq!(cpu.register_a, 0x0);
+    }
+    #[test]
+    fn test_sbc_from_memory_with_plus() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x20, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x10;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0x80);
+        assert_eq!(cpu.register_a, 0xef);
+    }
+    #[test]
+    fn test_sbc_from_memory_with_plus_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x20, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x10;
+        cpu.status = StatusFlags::CARRY;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0x80);
+        assert_eq!(cpu.register_a, 0xf0);
+    }
+    #[test]
+    fn test_sbc_from_memory_with_plus_with_overflow() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x70, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x70;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0x80);
+        assert_eq!(cpu.register_a, 0xff);
+    }
+    #[test]
+    fn test_sbc_from_memory_with_plus_with_overflow_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x70, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x70;
+        cpu.status = StatusFlags::CARRY;
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
+        assert_eq!(cpu.status.bits() & 0b1000_0000, 0x0);
+        assert_eq!(cpu.register_a, 0x00);
     }
 }
