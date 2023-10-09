@@ -108,13 +108,37 @@ impl CPU {
                     self.lda(&opcode.mode);
                     self.update_zero_and_negative_flags(self.register_a);
                 }
+                // LDX
+                0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => {
+                    self.ldx(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_x);
+                }
+                // LDY
+                0xA0 | 0xA4 | 0xB4 | 0xAC | 0xBC => {
+                    self.ldy(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_y);
+                }
+                // TAX
                 0xAA => {
                     self.tax();
                     self.update_zero_and_negative_flags(self.register_x);
                 }
+                0x8A => {
+                    self.txa();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                // INC
+                0xe6 | 0xf6 | 0xee | 0xfe => {
+                    self.inc(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
                 0xe8 => {
                     self.inx();
                     self.update_zero_and_negative_flags(self.register_x);
+                }
+                0xc8 => {
+                    self.iny();
+                    self.update_zero_and_negative_flags(self.register_y);
                 }
                 /* STA */
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
@@ -210,15 +234,36 @@ impl CPU {
         let value = self.mem_read(addr);
 
         self.register_a = value;
-        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_x = value;
+    }
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_y = value;
     }
 
     fn tax(&mut self) {
         self.register_x = self.register_a;
     }
+    fn txa(&mut self) {
+        self.register_a = self.register_x;
+    }
 
+    fn inc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.mem_write(addr, value.wrapping_add(1));
+    }
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
+    }
+    fn iny(&mut self) {
+        self.register_y = self.register_y.wrapping_add(1);
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -420,11 +465,46 @@ mod test {
         assert_eq!(cpu.register_x, 1);
     }
     #[test]
+    fn test_inc() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe6, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x01, 0x01);
+        cpu.run();
+        let value = cpu.mem_read(0x01);
+        assert_eq!(value, 2);
+    }
+    #[test]
+    fn test_iny() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xc8, 0x00]);
+        cpu.reset();
+        cpu.register_y = 0x01;
+        cpu.run();
+        assert_eq!(cpu.register_y, 2);
+    }
+    #[test]
     fn test_lda_from_memory() {
         let mut cpu = CPU::new();
         cpu.mem_write(0x10, 0x55);
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
         assert_eq!(cpu.register_a, 0x55);
+    }
+    #[test]
+    fn test_ldx() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xA2, 0x10, 0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.register_x, 0x10);
+    }
+    #[test]
+    fn test_ldy() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xa0, 0xff, 0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.register_y, 0xff);
     }
 
     #[test]
