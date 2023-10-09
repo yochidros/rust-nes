@@ -54,12 +54,30 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("BCC", 0x90, 2, 2, AddressingMode::NonAddressing),
         // BEQ
         OpCode::new("BEQ", 0xf0, 2, 2, AddressingMode::NonAddressing),
+        // BVC
+        OpCode::new("BVC", 0x50, 2, 2, AddressingMode::NonAddressing),
+        // BVS
+        OpCode::new("BVS", 0x70, 2, 2, AddressingMode::NonAddressing),
         // BNE
         OpCode::new("BNE", 0xd0, 2, 2, AddressingMode::NonAddressing),
         // TSX
         OpCode::new("TSX", 0xba, 1, 2, AddressingMode::NonAddressing),
         // TXS
         OpCode::new("TXS", 0x9a, 1, 2, AddressingMode::NonAddressing),
+        // JSR
+        OpCode::new("JSR", 0x20, 3, 6, AddressingMode::Absolute),
+        // RTS
+        OpCode::new("RTS", 0x60, 1, 6, AddressingMode::NonAddressing),
+        // RTI
+        OpCode::new("RTI", 0x40, 1, 6, AddressingMode::NonAddressing),
+        // PHA
+        OpCode::new("PHA", 0x48, 1, 3, AddressingMode::NonAddressing),
+        // PLA
+        OpCode::new("PLA", 0x68, 1, 4, AddressingMode::NonAddressing),
+        // PHP
+        OpCode::new("PHP", 0x08, 1, 3, AddressingMode::NonAddressing),
+        // PLP
+        OpCode::new("PLP", 0x28, 1, 4, AddressingMode::NonAddressing),
         // INC
         OpCode::new("INC", 0xe6, 2, 5, AddressingMode::ZeroPage),
         OpCode::new("INC", 0xf6, 2, 6, AddressingMode::ZeroPage_X),

@@ -1,5 +1,5 @@
 use crate::flags::*;
-use crate::mem::Mem;
+use crate::mem::*;
 use crate::opscodes::*;
 
 pub struct CPU {
@@ -12,6 +12,8 @@ pub struct CPU {
 
     memory: [u8; 0xffff],
 }
+
+const STACK_BASE: u16 = 0x0100;
 
 impl CPU {
     #[allow(dead_code)]
@@ -183,10 +185,35 @@ impl CPU {
                 0xd0 => {
                     self.branch(!self.status.contains(StatusFlags::ZERO));
                 }
+                // BVS
+                0x70 => {
+                    self.branch(self.status.contains(StatusFlags::OVERFLOW));
+                }
+                // BVC
+                0x50 => {
+                    self.branch(!self.status.contains(StatusFlags::OVERFLOW));
+                }
                 // TSX
                 0xba => {
                     self.tsx();
                     self.update_zero_and_negative_flags(self.register_x);
+                }
+                // PHA
+                0x48 => {
+                    self.pha();
+                }
+                // PLA
+                0x68 => {
+                    self.pla();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                // PHP
+                0x08 => {
+                    self.php();
+                }
+                // PLP
+                0x28 => {
+                    self.plp();
                 }
                 // TXS
                 0x9a => {
@@ -195,6 +222,18 @@ impl CPU {
                 // JMP
                 0x4c | 0x6c => {
                     self.jmp();
+                }
+                // JSR
+                0x20 => {
+                    self.jsr();
+                }
+                // RTS
+                0x60 => {
+                    self.rts();
+                }
+                // RTI
+                0x40 => {
+                    self.rti();
                 }
                 // CMP
                 0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
@@ -292,6 +331,16 @@ impl CPU {
         }
     }
 }
+impl Stack for CPU {
+    fn stack_push(&mut self, data: u8) {
+        self.mem_write((STACK_BASE as u16) + self.stack_pointer as u16, data);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1)
+    }
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        self.mem_read((STACK_BASE as u16) + self.stack_pointer as u16)
+    }
+}
 
 impl CPU {
     pub fn reset(&mut self) {
@@ -367,6 +416,7 @@ impl CPU {
     fn txs(&mut self) {
         self.stack_pointer = self.register_x;
     }
+
     fn cmp(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -450,6 +500,37 @@ impl CPU {
     fn sty(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_y);
+    }
+    fn jsr(&mut self) {
+        self.stack_push_u16(self.program_counter + 2 - 1);
+        let target_address = self.mem_read_u16(self.program_counter);
+        self.program_counter = target_address
+    }
+    fn rts(&mut self) {
+        let target_address = self.stack_pop_u16();
+        self.program_counter = target_address + 1;
+    }
+    fn rti(&mut self) {
+        self.status = StatusFlags::from_bits_truncate(self.stack_pop());
+        self.program_counter = self.stack_pop_u16()
+    }
+    fn pha(&mut self) {
+        let a = self.register_a;
+        self.stack_push(a);
+    }
+    fn pla(&mut self) {
+        self.register_a = self.stack_pop();
+    }
+    fn php(&mut self) {
+        let mut value = self.status.bits();
+        value = value | StatusFlags::BREAK.bits();
+        value = value | StatusFlags::RESERVED.bits();
+        self.stack_push(value);
+    }
+    fn plp(&mut self) {
+        self.status = StatusFlags::from_bits_truncate(self.stack_pop());
+        self.status = self.status & !StatusFlags::BREAK;
+        self.status = self.status | StatusFlags::RESERVED;
     }
 
     fn adc(&mut self, mode: &AddressingMode) {
