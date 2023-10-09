@@ -1,3 +1,4 @@
+use crate::bus::Bus;
 use crate::flags::*;
 use crate::mem::*;
 use crate::opscodes::*;
@@ -10,6 +11,7 @@ pub struct CPU {
     pub status: StatusFlags,
     pub program_counter: u16,
     pub stack_pointer: u8,
+    pub bus: Bus,
 
     memory: [u8; 0xffff],
 }
@@ -18,7 +20,7 @@ const STACK_BASE: u16 = 0x0100;
 
 impl CPU {
     #[allow(dead_code)]
-    pub fn new() -> CPU {
+    pub fn new(bus: Bus) -> CPU {
         CPU {
             register_a: 0,
             register_x: 0,
@@ -26,54 +28,77 @@ impl CPU {
             status: StatusFlags::from_bits_truncate(0b100100),
             program_counter: 0,
             stack_pointer: 0,
+            bus,
+            memory: [0; 0xffff],
+        }
+    }
+    pub fn new_test() -> CPU {
+        CPU {
+            register_a: 0,
+            register_x: 0,
+            register_y: 0,
+            status: StatusFlags::from_bits_truncate(0b100100),
+            program_counter: 0,
+            stack_pointer: 0,
+            bus: Bus::new(crate::cartridge::ROM {
+                prg_rom: [].to_vec(),
+                chr_rom: [].to_vec(),
+                mapper: 0,
+                screen_mirroring: crate::cartridge::Mirroring::Vertical,
+            }),
             memory: [0; 0xffff],
         }
     }
 }
 impl AddressingModeConverter for CPU {
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+    fn get_absolute_address(&self, mode: &AddressingMode, addr: u16) -> u16 {
         match mode {
-            AddressingMode::Immediate => self.program_counter,
-            AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
-            AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
+            AddressingMode::ZeroPage => self.mem_read(addr) as u16,
+            AddressingMode::Absolute => self.mem_read_u16(addr),
             AddressingMode::ZeroPage_X => {
-                let pos = self.mem_read(self.program_counter);
+                let pos = self.mem_read(addr);
                 let addr = pos.wrapping_add(self.register_x) as u16;
                 addr
             }
             AddressingMode::ZeroPage_Y => {
-                let pos = self.mem_read(self.program_counter);
+                let pos = self.mem_read(addr);
                 let addr = pos.wrapping_add(self.register_y) as u16;
                 addr
             }
             AddressingMode::Absolute_X => {
-                let base = self.mem_read_u16(self.program_counter);
+                let base = self.mem_read_u16(addr);
                 let addr = base.wrapping_add(self.register_x as u16);
                 addr
             }
             AddressingMode::Absolute_Y => {
-                let base = self.mem_read_u16(self.program_counter);
+                let base = self.mem_read_u16(addr);
                 let addr = base.wrapping_add(self.register_y as u16);
                 addr
             }
             AddressingMode::Indirect_X => {
-                let base = self.mem_read(self.program_counter);
+                let base = self.mem_read(addr);
                 let ptr: u8 = (base as u8).wrapping_add(self.register_x);
                 let lo = self.mem_read(ptr as u16);
                 let hi = self.mem_read(ptr.wrapping_add(1) as u16);
                 (hi as u16) << 8 | (lo as u16)
             }
             AddressingMode::Indirect_Y => {
-                let base = self.mem_read(self.program_counter);
+                let base = self.mem_read(addr);
                 let lo = self.mem_read(base as u16);
                 let hi = self.mem_read(base.wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
             }
-            AddressingMode::NonAddressing => {
-                panic!("mode {:?} is not supported", mode);
+            _ => {
+                panic!("mode {:?} is not supported", mode)
             }
+        }
+    }
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.program_counter,
+            _ => self.get_absolute_address(mode, self.program_counter),
         }
     }
 }
@@ -81,10 +106,16 @@ impl AddressingModeConverter for CPU {
 // Memory
 impl Mem for CPU {
     fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
+        self.bus.mem_read(addr)
     }
     fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
+        self.bus.mem_write(addr, data);
+    }
+    fn mem_read_u16(&self, pos: u16) -> u16 {
+        self.bus.mem_read_u16(pos)
+    }
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        self.bus.mem_write_u16(pos, data);
     }
 }
 
@@ -109,16 +140,16 @@ impl CPU {
         F: FnMut(&mut CPU),
     {
         loop {
+            callback(self);
             let code = self.mem_read(self.program_counter);
-            println!(
-                "code = {:x}, program_counter = {:x}",
-                code, self.program_counter
-            );
+            // println!(
+            //     "code = {:x}, program_counter = {:x}",
+            //     code, self.program_counter
+            // );
             self.program_counter += 1;
             let program_counter_state = self.program_counter;
             let opcode = OPCODES_MAP.get(&code).expect("opcode not found");
-            println!("opcode = {:?}", opcode);
-            callback(self);
+            // println!("opcode = {:?}", opcode);
 
             match code {
                 // LDA
@@ -303,13 +334,15 @@ impl CPU {
                 }
                 // CMP
                 0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
-                    self.cmp(&opcode.mode);
+                    self.cmp(&opcode.mode, self.register_a);
                 }
+                // CPX
                 0xe0 | 0xe4 | 0xec => {
-                    self.cpx(&opcode.mode);
+                    self.cmp(&opcode.mode, self.register_x);
                 }
+                // CPY
                 0xc0 | 0xc4 | 0xcc => {
-                    self.cpy(&opcode.mode);
+                    self.cmp(&opcode.mode, self.register_y);
                 }
                 /* STA */
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
@@ -422,7 +455,7 @@ impl CPU {
     }
     fn asl_accumulator(&mut self) {
         let value = self.register_a;
-        self.status = if value & StatusFlags::CARRY.bits() > 0 {
+        self.status = if value >> 7 == 1 {
             self.status | StatusFlags::CARRY
         } else {
             self.status & !StatusFlags::CARRY
@@ -434,7 +467,7 @@ impl CPU {
     fn asl(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        self.status = if value & StatusFlags::CARRY.bits() > 0 {
+        self.status = if value >> 7 == 1 {
             self.status | StatusFlags::CARRY
         } else {
             self.status & !StatusFlags::CARRY
@@ -596,25 +629,16 @@ impl CPU {
         self.stack_pointer = self.register_x;
     }
 
-    fn cmp(&mut self, mode: &AddressingMode) {
+    fn cmp(&mut self, mode: &AddressingMode, compare_with: u8) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        let result = self.register_a.wrapping_sub(value);
-        self.status = if self.register_a >= value {
+        let result = compare_with.wrapping_sub(value);
+        self.status = if value <= compare_with {
             self.status | StatusFlags::CARRY
         } else {
             self.status & !StatusFlags::CARRY
         };
-        self.status = if self.register_a == value {
-            self.status | StatusFlags::ZERO
-        } else {
-            self.status & !StatusFlags::ZERO
-        };
-        self.status = if result & StatusFlags::NEGATIVE.bits() > 0 {
-            self.status | StatusFlags::NEGATIVE
-        } else {
-            self.status & !StatusFlags::NEGATIVE
-        };
+        self.update_zero_and_negative_flags(result);
     }
 
     fn cpx(&mut self, mode: &AddressingMode) {
@@ -691,6 +715,8 @@ impl CPU {
     }
     fn rti(&mut self) {
         self.status = StatusFlags::from_bits_truncate(self.stack_pop());
+        self.status = self.status & !StatusFlags::BREAK;
+        self.status = self.status | StatusFlags::RESERVED;
         self.program_counter = self.stack_pop_u16()
     }
     fn pha(&mut self) {
@@ -868,7 +894,7 @@ mod test {
 
     #[test]
     fn test_0x9a_lda_immediate_load_data() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load_and_run(vec![0xA9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
         assert_eq!(cpu.status.bits() & StatusFlags::ZERO.bits(), 0b00);
@@ -877,34 +903,34 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load_and_run(vec![0xA9, 0x00, 0x00]);
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
     }
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.register_a = 10;
         cpu.load_and_run(vec![0xa9, 0x0a, 0xAA, 0x00]);
         assert_eq!(cpu.register_x, 10);
     }
     #[test]
     fn test_5_ops_working_together() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
         assert_eq!(cpu.register_x, 0xc1);
     }
     #[test]
     fn test_inx_overflow() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.register_x = 0xff;
         cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
         assert_eq!(cpu.register_x, 1);
     }
     #[test]
     fn test_inc() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe6, 0x01, 0x00]);
         cpu.reset();
         cpu.mem_write(0x01, 0x01);
@@ -914,7 +940,7 @@ mod test {
     }
     #[test]
     fn test_iny() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xc8, 0x00]);
         cpu.reset();
         cpu.register_y = 0x01;
@@ -923,14 +949,14 @@ mod test {
     }
     #[test]
     fn test_lda_from_memory() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.mem_write(0x10, 0x55);
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
         assert_eq!(cpu.register_a, 0x55);
     }
     #[test]
     fn test_ldx() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xA2, 0x10, 0x00]);
         cpu.reset();
         cpu.run();
@@ -938,7 +964,7 @@ mod test {
     }
     #[test]
     fn test_ldy() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xa0, 0xff, 0x00]);
         cpu.reset();
         cpu.run();
@@ -947,7 +973,7 @@ mod test {
 
     #[test]
     fn test_adc_from_memory() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0x01;
@@ -958,7 +984,7 @@ mod test {
     }
     #[test]
     fn test_adc_from_memory_with_carry() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.status = StatusFlags::CARRY;
@@ -971,7 +997,7 @@ mod test {
 
     #[test]
     fn test_adc_from_memory_should_overflow() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0x01;
@@ -985,7 +1011,7 @@ mod test {
 
     #[test]
     fn test_adc_from_memory_with_has_carry_should_overflow() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0x7f;
@@ -999,7 +1025,7 @@ mod test {
 
     #[test]
     fn test_adc_from_memory_with_plus() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0x50;
@@ -1011,7 +1037,7 @@ mod test {
 
     #[test]
     fn test_adc_from_memory_with_minus() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x69, 0x00]);
         cpu.reset();
         cpu.register_a = 0b0101_0000; //80
@@ -1026,7 +1052,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x10, 0x00]);
         cpu.reset();
         cpu.register_a = 0x20;
@@ -1037,7 +1063,7 @@ mod test {
 
     #[test]
     fn test_sbc_from_memory_with_carry() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x10, 0x00]);
         cpu.reset();
         cpu.register_a = 0x20;
@@ -1049,7 +1075,7 @@ mod test {
 
     #[test]
     fn test_sbc_from_memory_overflow() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x00, 0x00]);
         cpu.reset();
         cpu.register_a = 0x0;
@@ -1059,7 +1085,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory_overflow_with_carry() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x00, 0x00]);
         cpu.reset();
         cpu.register_a = 0x0;
@@ -1070,7 +1096,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory_with_minus() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0xf0, 0x00]); // decimal: -112
         cpu.reset();
         cpu.register_a = 0x00; // decimal: 80
@@ -1085,7 +1111,7 @@ mod test {
 
     #[test]
     fn test_sbc_from_memory_with_minus_with_carry() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0xf0, 0x00]); // decimal: -70
         cpu.reset();
         cpu.register_a = 0xf0; // decimal: -70
@@ -1099,7 +1125,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory_with_plus() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x20, 0x00]);
         cpu.reset();
         cpu.register_a = 0x10;
@@ -1110,7 +1136,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory_with_plus_with_carry() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x20, 0x00]);
         cpu.reset();
         cpu.register_a = 0x10;
@@ -1122,7 +1148,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory_with_plus_with_overflow() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x70, 0x00]);
         cpu.reset();
         cpu.register_a = 0x70;
@@ -1133,7 +1159,7 @@ mod test {
     }
     #[test]
     fn test_sbc_from_memory_with_plus_with_overflow_with_carry() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xe9, 0x70, 0x00]);
         cpu.reset();
         cpu.register_a = 0x70;
@@ -1146,7 +1172,7 @@ mod test {
 
     #[test]
     fn test_and_from_memory() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x29, 0x10, 0x00]);
         cpu.reset();
         cpu.register_a = 0x10;
@@ -1155,7 +1181,7 @@ mod test {
     }
     #[test]
     fn test_eor_from_memory() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x49, 0x10, 0x00]);
         cpu.reset();
         cpu.register_a = 0x08;
@@ -1164,7 +1190,7 @@ mod test {
     }
     #[test]
     fn test_ora_from_memory() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x09, 0x10, 0x00]);
         cpu.reset();
         cpu.register_a = 0x08;
@@ -1173,7 +1199,7 @@ mod test {
     }
     #[test]
     fn test_bit_all_false() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x24, 0x01, 0x00]);
         cpu.reset();
         cpu.mem_write(0x01, 0x01);
@@ -1185,7 +1211,7 @@ mod test {
     }
     #[test]
     fn test_bit_zero_true() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x24, 0x01, 0x00]);
         cpu.reset();
         cpu.mem_write(0x01, 0x00);
@@ -1197,7 +1223,7 @@ mod test {
     }
     #[test]
     fn test_bit_zero_true_overflow_true() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x24, 0x01, 0x00]);
         cpu.reset();
         cpu.mem_write(0x01, 0x42);
@@ -1212,7 +1238,7 @@ mod test {
     }
     #[test]
     fn test_bit_zero_true_overflow_true_negative_true() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x24, 0x01, 0x00]);
         cpu.reset();
         cpu.mem_write(0x01, 0xC2);
@@ -1227,7 +1253,7 @@ mod test {
     }
     #[test]
     fn test_brk() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x00]);
         cpu.reset();
         cpu.run();
@@ -1235,7 +1261,7 @@ mod test {
     }
     #[test]
     fn test_sec() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x38, 0x00]);
         cpu.reset();
         cpu.run();
@@ -1243,7 +1269,7 @@ mod test {
     }
     #[test]
     fn test_clc() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x18, 0x00]);
         cpu.reset();
         cpu.run();
@@ -1251,7 +1277,7 @@ mod test {
     }
     #[test]
     fn test_sed() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xf8, 0x00]);
         cpu.reset();
         cpu.run();
@@ -1259,7 +1285,7 @@ mod test {
     }
     #[test]
     fn test_cld() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xD8, 0x00]);
         cpu.status = StatusFlags::from_bits_truncate(0b0000_1000);
         cpu.reset();
@@ -1268,7 +1294,7 @@ mod test {
     }
     #[test]
     fn test_sei() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x78, 0x00]);
         cpu.reset();
         cpu.run();
@@ -1276,7 +1302,7 @@ mod test {
     }
     #[test]
     fn test_cli() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0x58, 0x00]);
         cpu.status = StatusFlags::from_bits_truncate(0b0000_0100);
         cpu.reset();
@@ -1285,7 +1311,7 @@ mod test {
     }
     #[test]
     fn test_clv() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new_test();
         cpu.load(vec![0xB8, 0x00]);
         cpu.status = StatusFlags::from_bits_truncate(0b0100_0000);
         cpu.reset();

@@ -1,3 +1,5 @@
+use crate::bus::Bus;
+
 pub trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
     fn mem_write(&mut self, addr: u16, data: u8);
@@ -13,6 +15,48 @@ pub trait Mem {
         let lo_bits = (data & 0xff) as u8;
         self.mem_write(pos, lo_bits);
         self.mem_write(pos + 1, hi_bits);
+    }
+}
+const RAM: u16 = 0x0000;
+const RAM_MIRROS_END: u16 = 0x1fff;
+const PPU_REGISTERS: u16 = 0x2000;
+const PPU_REGISTERS_MIRROR_END: u16 = 0x3fff;
+
+impl Mem for Bus {
+    fn mem_read(&self, addr: u16) -> u8 {
+        match addr {
+            RAM..=RAM_MIRROS_END => {
+                let mirror_down_addr = addr & 0b0000_0111_1111_1111;
+                self.cpu_vram[mirror_down_addr as usize]
+            }
+            PPU_REGISTERS..=PPU_REGISTERS_MIRROR_END => {
+                let _mirror_down_addr = addr & 0b0010_0000_0000_0111;
+                todo!()
+            }
+            0x8000..=0xFFFF => self.read_prg_rom(addr),
+            _ => {
+                println!("ignoring mem access at {}", addr);
+                0
+            }
+        }
+    }
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        match addr {
+            RAM..=RAM_MIRROS_END => {
+                let mirror_down_addr = addr & 0b0000_0111_1111_1111;
+                self.cpu_vram[mirror_down_addr as usize] = data;
+            }
+            PPU_REGISTERS..=PPU_REGISTERS_MIRROR_END => {
+                let _mirror_down_addr = addr & 0b0010_0000_0000_0111;
+                todo!()
+            }
+            0x8000..=0xFFFF => {
+                panic!("attempt to write to cartridge rom space");
+            }
+            _ => {
+                println!("ignoring mem write access at {}", addr);
+            }
+        }
     }
 }
 pub trait Stack {
