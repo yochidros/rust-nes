@@ -2,6 +2,7 @@ use crate::flags::*;
 use crate::mem::*;
 use crate::opscodes::*;
 
+#[derive(Debug)]
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
@@ -94,17 +95,30 @@ impl CPU {
         self.reset();
         self.run();
     }
+    // pub fn load(&mut self, program: Vec<u8>) {
+    //     self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
+    //     // 0xFFFC: program counter address set start point.
+    //     self.mem_write_u16(0xFFFC, 0x8000);
+    // }
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        // 0xFFFC: program counter address set start point.
-        self.mem_write_u16(0xFFFC, 0x8000);
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program);
+        self.mem_write_u16(0xfffc, 0x0600);
     }
-    pub fn run(&mut self) {
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         loop {
             let code = self.mem_read(self.program_counter);
+            println!(
+                "code = {:x}, program_counter = {:x}",
+                code, self.program_counter
+            );
             self.program_counter += 1;
             let program_counter_state = self.program_counter;
             let opcode = OPCODES_MAP.get(&code).expect("opcode not found");
+            println!("opcode = {:?}", opcode);
+            callback(self);
 
             match code {
                 // LDA
@@ -234,6 +248,14 @@ impl CPU {
                 0x50 => {
                     self.branch(!self.status.contains(StatusFlags::OVERFLOW));
                 }
+                // BPL
+                0x10 => {
+                    self.branch(!self.status.contains(StatusFlags::NEGATIVE));
+                }
+                // BMI
+                0x30 => {
+                    self.branch(self.status.contains(StatusFlags::NEGATIVE));
+                }
                 // TSX
                 0xba => {
                     self.tsx();
@@ -261,8 +283,11 @@ impl CPU {
                     self.txs();
                 }
                 // JMP
-                0x4c | 0x6c => {
+                0x4c => {
                     self.jmp();
+                }
+                0x6c => {
+                    self.jmp_indirect();
                 }
                 // JSR
                 0x20 => {
@@ -370,6 +395,9 @@ impl CPU {
                 self.program_counter += (opcode.bytes_len - 1) as u16;
             }
         }
+    }
+    pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
     }
 }
 impl Stack for CPU {
@@ -525,6 +553,18 @@ impl CPU {
     fn jmp(&mut self) {
         let addr = self.mem_read_u16(self.program_counter);
         self.program_counter = addr;
+    }
+    fn jmp_indirect(&mut self) {
+        let addr = self.mem_read_u16(self.program_counter);
+        let indirect_ref = if addr & 0x00FF == 0x00FF {
+            // Simulate page boundary hardware bug
+            let lo = self.mem_read(addr);
+            let hi = self.mem_read(addr & 0xFF00);
+            (hi as u16) << 8 | (lo as u16)
+        } else {
+            self.mem_read_u16(addr)
+        };
+        self.program_counter = indirect_ref;
     }
 
     fn inc(&mut self, mode: &AddressingMode) {
@@ -753,11 +793,8 @@ impl CPU {
     }
     fn bit(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        println!("register_a: {:04x}", self.program_counter);
-        println!("addr: {:04x}", addr);
         let value = self.mem_read(addr); // M
         let result = self.register_a & value;
-        println!("{}, {} result: {:08b}", self.register_a, value, result);
         self.status = if result == 0 {
             self.status | StatusFlags::ZERO
         } else {

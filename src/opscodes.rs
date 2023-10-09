@@ -19,6 +19,7 @@ pub trait AddressingModeConverter {
     fn get_operand_address(&self, mode: &AddressingMode) -> u16;
 }
 
+#[derive(Debug)]
 pub struct OpCode {
     pub name: &'static str,
     pub code: u8,
@@ -60,6 +61,10 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("BVS", 0x70, 2, 2, AddressingMode::NonAddressing),
         // BNE
         OpCode::new("BNE", 0xd0, 2, 2, AddressingMode::NonAddressing),
+        // BPL
+        OpCode::new("BPL", 0x10, 2, 2, AddressingMode::NonAddressing),
+        // BMI
+        OpCode::new("BMI", 0x30, 2, 2, AddressingMode::NonAddressing),
         // TSX
         OpCode::new("TSX", 0xba, 1, 2, AddressingMode::NonAddressing),
         // TXS
@@ -92,6 +97,9 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("LSR", 0x56, 2, 6, AddressingMode::ZeroPage_X),
         OpCode::new("LSR", 0x4e, 3, 6, AddressingMode::Absolute),
         OpCode::new("LSR", 0x5e, 3, 7, AddressingMode::Absolute_X),
+        // JMP
+        OpCode::new("JMP", 0x4c, 3, 3, AddressingMode::Absolute),
+        OpCode::new("JMP", 0x6c, 3, 5, AddressingMode::NonAddressing),
         // ROR
         OpCode::new("ROR", 0x6a, 1, 2, AddressingMode::NonAddressing),
         // ROR
