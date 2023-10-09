@@ -112,6 +112,47 @@ impl CPU {
                     self.lda(&opcode.mode);
                     self.update_zero_and_negative_flags(self.register_a);
                 }
+                // ASL with Accumulator
+                0x0a => {
+                    self.asl_accumulator();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                // ASL with memory
+                0x06 | 0x16 | 0x0e | 0x1e => {
+                    let value = self.asl(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                    self.update_zero_and_negative_flags(value);
+                }
+                // LSR with Accumulator
+                0x4a => {
+                    self.lsr_accumulator();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                0x46 | 0x56 | 0x4e | 0x5e => {
+                    let value = self.lsr(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                    self.update_zero_and_negative_flags(value);
+                }
+                // ROR with Accumulator
+                0x6a => {
+                    self.ror_accumulator();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                0x66 | 0x76 | 0x6e | 0x7e => {
+                    let value = self.ror(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                    self.update_zero_and_negative_flags(value);
+                }
+                // ROL with Accumulator
+                0x2a => {
+                    self.rol_accumulator();
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                0x26 | 0x36 | 0x2e | 0x3e => {
+                    let value = self.rol(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                    self.update_zero_and_negative_flags(value);
+                }
                 // LDX
                 0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => {
                     self.ldx(&opcode.mode);
@@ -350,6 +391,104 @@ impl CPU {
         self.status = StatusFlags::from_bits_truncate(0b0010_0100);
 
         self.program_counter = self.mem_read_u16(0xFFFC);
+    }
+    fn asl_accumulator(&mut self) {
+        let value = self.register_a;
+        self.status = if value & StatusFlags::CARRY.bits() > 0 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = value << 1;
+        self.register_a = result;
+    }
+
+    fn asl(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.status = if value & StatusFlags::CARRY.bits() > 0 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = value << 1;
+        self.mem_write(addr, result);
+        result
+    }
+    fn lsr_accumulator(&mut self) {
+        let value = self.register_a;
+        self.status = if value & StatusFlags::CARRY.bits() == 1 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = value >> 1;
+        self.register_a = result;
+    }
+
+    fn lsr(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.status = if value & StatusFlags::CARRY.bits() == 1 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = value >> 1;
+        self.mem_write(addr, result);
+        result
+    }
+    fn ror_accumulator(&mut self) {
+        let value = self.register_a;
+        let current_carry = self.status.bits() & StatusFlags::CARRY.bits();
+        let old_carry = value & StatusFlags::CARRY.bits();
+        self.status = if old_carry > 0 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = (value >> 1) | (current_carry << 7);
+        self.register_a = result;
+    }
+    fn ror(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let current_carry = self.status.bits() & StatusFlags::CARRY.bits();
+        let old_carry = value & StatusFlags::CARRY.bits();
+        self.status = if old_carry > 0 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = (value >> 1) | (current_carry << 7);
+        self.mem_write(addr, result);
+        result
+    }
+    fn rol_accumulator(&mut self) {
+        let value = self.register_a;
+        let current_carry = self.status.bits() & StatusFlags::CARRY.bits();
+        let old_carry = value >> 7;
+        self.status = if old_carry > 0 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = (value << 1) | current_carry;
+        self.register_a = result;
+    }
+    fn rol(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let current_carry = self.status.bits() & StatusFlags::CARRY.bits();
+        let old_carry = value >> 7;
+        self.status = if old_carry > 0 {
+            self.status | StatusFlags::CARRY
+        } else {
+            self.status & !StatusFlags::CARRY
+        };
+        let result = (value << 1) | current_carry;
+        self.mem_write(addr, result);
+        result
     }
 
     fn lda(&mut self, mode: &AddressingMode) {

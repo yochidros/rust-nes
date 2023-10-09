@@ -78,6 +78,34 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("PHP", 0x08, 1, 3, AddressingMode::NonAddressing),
         // PLP
         OpCode::new("PLP", 0x28, 1, 4, AddressingMode::NonAddressing),
+        // ASL
+        OpCode::new("ASL", 0x0a, 1, 2, AddressingMode::NonAddressing),
+        // ASL
+        OpCode::new("ASL", 0x06, 2, 5, AddressingMode::ZeroPage),
+        OpCode::new("ASL", 0x16, 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new("ASL", 0x0e, 3, 6, AddressingMode::Absolute),
+        OpCode::new("ASL", 0x1e, 3, 7, AddressingMode::Absolute_X),
+        // LSR
+        OpCode::new("LSR", 0x4a, 1, 2, AddressingMode::NonAddressing),
+        // LSR
+        OpCode::new("LSR", 0x46, 2, 5, AddressingMode::ZeroPage),
+        OpCode::new("LSR", 0x56, 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new("LSR", 0x4e, 3, 6, AddressingMode::Absolute),
+        OpCode::new("LSR", 0x5e, 3, 7, AddressingMode::Absolute_X),
+        // ROR
+        OpCode::new("ROR", 0x6a, 1, 2, AddressingMode::NonAddressing),
+        // ROR
+        OpCode::new("ROR", 0x66, 2, 5, AddressingMode::ZeroPage),
+        OpCode::new("ROR", 0x76, 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new("ROR", 0x6e, 3, 6, AddressingMode::Absolute),
+        OpCode::new("ROR", 0x7e, 3, 7, AddressingMode::Absolute_X),
+        // ROL
+        OpCode::new("ROL", 0x2a, 1, 2, AddressingMode::NonAddressing),
+        // ROL
+        OpCode::new("ROL", 0x26, 2, 5, AddressingMode::ZeroPage),
+        OpCode::new("ROL", 0x36, 2, 6, AddressingMode::ZeroPage_X),
+        OpCode::new("ROL", 0x2e, 3, 6, AddressingMode::Absolute),
+        OpCode::new("ROL", 0x3e, 3, 7, AddressingMode::Absolute_X),
         // INC
         OpCode::new("INC", 0xe6, 2, 5, AddressingMode::ZeroPage),
         OpCode::new("INC", 0xf6, 2, 6, AddressingMode::ZeroPage_X),
