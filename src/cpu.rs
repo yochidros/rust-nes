@@ -149,6 +149,13 @@ impl CPU {
                 0x24 | 0x2c => {
                     self.bit(&opcode.mode);
                 }
+                /* SEC */
+                0x38 => {
+                    self.sec();
+                }
+                0x18 => {
+                    self.clc();
+                }
                 0x00 => {
                     self.brk();
                     break;
@@ -298,6 +305,12 @@ impl CPU {
 
     fn brk(&mut self) {
         self.status = self.status | StatusFlags::BREAK;
+    }
+    fn sec(&mut self) {
+        self.status = self.status | StatusFlags::CARRY;
+    }
+    fn clc(&mut self) {
+        self.status = self.status & !StatusFlags::CARRY;
     }
     // NVRB_DIZC (R 予約済み　使用できない)
     // N: negative
@@ -658,5 +671,21 @@ mod test {
         cpu.reset();
         cpu.run();
         assert_eq!(cpu.status.bits() & 0b0001_0000, StatusFlags::BREAK.bits());
+    }
+    #[test]
+    fn test_sec() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x38, 0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, StatusFlags::CARRY.bits());
+    }
+    #[test]
+    fn test_clc() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x18, 0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
     }
 }
