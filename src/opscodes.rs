@@ -85,6 +85,33 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("SBC", 0xf9, 3, 4, AddressingMode::Absolute_Y),
         OpCode::new("SBC", 0xe1, 2, 6, AddressingMode::Indirect_X),
         OpCode::new("SBC", 0xf1, 2, 5, AddressingMode::Indirect_Y),
+        // AND
+        OpCode::new("AND", 0x29, 2, 2, AddressingMode::Immediate),
+        OpCode::new("AND", 0x25, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("AND", 0x35, 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new("AND", 0x2d, 3, 4, AddressingMode::Absolute),
+        OpCode::new("AND", 0x3d, 3, 4, AddressingMode::Absolute_X),
+        OpCode::new("AND", 0x39, 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new("AND", 0x21, 2, 6, AddressingMode::Indirect_X),
+        OpCode::new("AND", 0x31, 2, 5, AddressingMode::Indirect_Y),
+        // EOR
+        OpCode::new("EOR", 0x49, 2, 2, AddressingMode::Immediate),
+        OpCode::new("EOR", 0x45, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("EOR", 0x55, 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new("EOR", 0x4d, 3, 4, AddressingMode::Absolute),
+        OpCode::new("EOR", 0x5d, 3, 4, AddressingMode::Absolute_X),
+        OpCode::new("EOR", 0x59, 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new("EOR", 0x41, 2, 6, AddressingMode::Indirect_X),
+        OpCode::new("EOR", 0x51, 2, 5, AddressingMode::Indirect_Y),
+        // ORA
+        OpCode::new("ORA", 0x09, 2, 2, AddressingMode::Immediate),
+        OpCode::new("ORA", 0x05, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new("ORA", 0x15, 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new("ORA", 0x0d, 3, 4, AddressingMode::Absolute),
+        OpCode::new("ORA", 0x1d, 3, 4, AddressingMode::Absolute_X),
+        OpCode::new("ORA", 0x19, 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new("ORA", 0x01, 2, 6, AddressingMode::Indirect_X),
+        OpCode::new("ORA", 0x11, 2, 5, AddressingMode::Indirect_Y),
     ]
 });
 pub static OPCODES_MAP: Lazy<HashMap<u8, &'static OpCode>> = Lazy::new(|| {

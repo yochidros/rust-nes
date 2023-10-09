@@ -130,6 +130,21 @@ impl CPU {
                     self.sbc(&opcode.mode);
                     self.update_zero_and_negative_flags(self.register_a);
                 }
+                /* AND */
+                0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
+                    self.and(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                /* EOR */
+                0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 => {
+                    self.eor(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
+                /* ORA */
+                0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 => {
+                    self.ora(&opcode.mode);
+                    self.update_zero_and_negative_flags(self.register_a);
+                }
                 // BRK break
                 0x00 => return,
                 _ => todo!(),
@@ -235,6 +250,21 @@ impl CPU {
             self.status & !StatusFlags::OVERFLOW
         };
         self.register_a = sum_with_carry as u8;
+    }
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr); // M
+        self.register_a = self.register_a & value;
+    }
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr); // M
+        self.register_a = self.register_a ^ value;
+    }
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr); // M
+        self.register_a = self.register_a | value;
     }
     // NVRB_DIZC (R 予約済み　使用できない)
     // N: negative
@@ -505,5 +535,33 @@ mod test {
         assert_eq!(cpu.status.bits() & 0b0000_0001, 1);
         assert_eq!(cpu.status.bits() & 0b1000_0000, 0x0);
         assert_eq!(cpu.register_a, 0x00);
+    }
+
+    #[test]
+    fn test_and_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x29, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x10;
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x10);
+    }
+    #[test]
+    fn test_eor_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x49, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x08;
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x18);
+    }
+    #[test]
+    fn test_ora_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x09, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x08;
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x18);
     }
 }
