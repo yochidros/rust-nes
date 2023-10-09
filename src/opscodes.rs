@@ -119,8 +119,20 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("BRK", 0x00, 1, 7, AddressingMode::NonAddressing),
         // SEC
         OpCode::new("SEC", 0x38, 1, 2, AddressingMode::NonAddressing),
+        // SED
+        OpCode::new("SED", 0xf8, 1, 2, AddressingMode::NonAddressing),
         // CEC
         OpCode::new("CEC", 0x18, 1, 2, AddressingMode::NonAddressing),
+        // CLD
+        OpCode::new("CLD", 0xd8, 1, 2, AddressingMode::NonAddressing),
+        // SEI
+        OpCode::new("SEI", 0x78, 1, 2, AddressingMode::NonAddressing),
+        // CLI
+        OpCode::new("CLI", 0x58, 1, 2, AddressingMode::NonAddressing),
+        // CLV
+        OpCode::new("CLV", 0xb8, 1, 2, AddressingMode::NonAddressing),
+        // NOP
+        OpCode::new("NOP", 0xea, 1, 2, AddressingMode::NonAddressing),
     ]
 });
 pub static OPCODES_MAP: Lazy<HashMap<u8, &'static OpCode>> = Lazy::new(|| {

@@ -153,9 +153,35 @@ impl CPU {
                 0x38 => {
                     self.sec();
                 }
+                /* CLC */
                 0x18 => {
                     self.clc();
                 }
+                /* SED */
+                0xf8 => {
+                    self.sed();
+                }
+                /* CLD */
+                0xd8 => {
+                    self.cld();
+                }
+                /* SEI */
+                0x78 => {
+                    self.sei();
+                }
+                /* CLI */
+                0x58 => {
+                    self.cli();
+                }
+                /* CLV */
+                0xb8 => {
+                    self.clv();
+                }
+                /* NOP */
+                0xea => {
+                    self.nop();
+                }
+                /* BRK */
                 0x00 => {
                     self.brk();
                     break;
@@ -312,6 +338,23 @@ impl CPU {
     fn clc(&mut self) {
         self.status = self.status & !StatusFlags::CARRY;
     }
+    fn sed(&mut self) {
+        self.status = self.status | StatusFlags::DECIMAL_MODE;
+    }
+    fn cld(&mut self) {
+        self.status = self.status & !StatusFlags::DECIMAL_MODE;
+    }
+    fn sei(&mut self) {
+        self.status = self.status | StatusFlags::INTERRUPT_DISABLE;
+    }
+    fn cli(&mut self) {
+        self.status = self.status & !StatusFlags::INTERRUPT_DISABLE;
+    }
+    fn clv(&mut self) {
+        self.status = self.status & !StatusFlags::OVERFLOW;
+    }
+    fn nop(&self) {}
+
     // NVRB_DIZC (R 予約済み　使用できない)
     // N: negative
     // V: overflow
@@ -687,5 +730,48 @@ mod test {
         cpu.reset();
         cpu.run();
         assert_eq!(cpu.status.bits() & 0b0000_0001, 0);
+    }
+    #[test]
+    fn test_sed() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xf8, 0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_1000, 0b0000_1000);
+    }
+    #[test]
+    fn test_cld() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xD8, 0x00]);
+        cpu.status = StatusFlags::from_bits_truncate(0b0000_1000);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_1000, 0);
+    }
+    #[test]
+    fn test_sei() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x78, 0x00]);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0100, 0b0000_0100);
+    }
+    #[test]
+    fn test_cli() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x58, 0x00]);
+        cpu.status = StatusFlags::from_bits_truncate(0b0000_0100);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0000_0100, 0);
+    }
+    #[test]
+    fn test_clv() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xB8, 0x00]);
+        cpu.status = StatusFlags::from_bits_truncate(0b0100_0000);
+        cpu.reset();
+        cpu.run();
+        assert_eq!(cpu.status.bits() & 0b0100_0000, 0);
     }
 }
