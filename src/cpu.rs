@@ -230,7 +230,6 @@ impl CPU {
                 // INC
                 0xe6 | 0xf6 | 0xee | 0xfe => {
                     self.inc(&opcode.mode);
-                    self.update_zero_and_negative_flags(self.register_a);
                 }
                 0xe8 => {
                     self.inx();
@@ -243,7 +242,6 @@ impl CPU {
                 // DEC
                 0xc6 | 0xd6 | 0xce | 0xde => {
                     self.dec(&opcode.mode);
-                    self.update_zero_and_negative_flags(self.register_a);
                 }
                 // DEX
                 0xca => {
@@ -603,7 +601,9 @@ impl CPU {
     fn inc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        self.mem_write(addr, value.wrapping_add(1));
+        let data = value.wrapping_add(1);
+        self.mem_write(addr, data);
+        self.update_zero_and_negative_flags(data);
     }
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
@@ -614,7 +614,9 @@ impl CPU {
     fn dec(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        self.mem_write(addr, value.wrapping_sub(1));
+        let data = value.wrapping_sub(1);
+        self.mem_write(addr, data);
+        self.update_zero_and_negative_flags(data)
     }
     fn dex(&mut self) {
         self.register_x = self.register_x.wrapping_sub(1);
