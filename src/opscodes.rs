@@ -71,7 +71,7 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         // TXS
         OpCode::new("TXS", 0x9a, 1, 2, AddressingMode::NonAddressing),
         // JSR
-        OpCode::new("JSR", 0x20, 3, 6, AddressingMode::Absolute),
+        OpCode::new("JSR", 0x20, 3, 6, AddressingMode::NonAddressing),
         // RTS
         OpCode::new("RTS", 0x60, 1, 6, AddressingMode::NonAddressing),
         // RTI
@@ -99,7 +99,7 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new("LSR", 0x4e, 3, 6, AddressingMode::Absolute),
         OpCode::new("LSR", 0x5e, 3, 7, AddressingMode::Absolute_X),
         // JMP
-        OpCode::new("JMP", 0x4c, 3, 3, AddressingMode::Absolute),
+        OpCode::new("JMP", 0x4c, 3, 3, AddressingMode::NonAddressing),
         OpCode::new("JMP", 0x6c, 3, 5, AddressingMode::NonAddressing),
         // ROR
         OpCode::new("ROR", 0x6a, 1, 2, AddressingMode::NonAddressing),
@@ -250,7 +250,7 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         // SED
         OpCode::new("SED", 0xf8, 1, 2, AddressingMode::NonAddressing),
         // CEC
-        OpCode::new("CEC", 0x18, 1, 2, AddressingMode::NonAddressing),
+        OpCode::new("CLC", 0x18, 1, 2, AddressingMode::NonAddressing),
         // CLD
         OpCode::new("CLD", 0xd8, 1, 2, AddressingMode::NonAddressing),
         // SEI
