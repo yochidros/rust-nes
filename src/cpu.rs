@@ -449,6 +449,7 @@ impl CPU {
         self.register_y = 0;
         self.status = StatusFlags::from_bits_truncate(0b0010_0100);
 
+        self.stack_pointer = 0xFD;
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
     fn asl_accumulator(&mut self) {
