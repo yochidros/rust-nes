@@ -1,10 +1,13 @@
 pub mod addr_register;
 pub mod control_register;
 pub mod mask_register;
+pub mod status_register;
 
 use addr_register::AddrRegister;
 
-use self::{control_register::ControlRegister, mask_register::MaskRegister};
+use self::{
+    control_register::ControlRegister, mask_register::MaskRegister, status_register::StatusRegister,
+};
 
 #[derive(Debug)]
 pub struct NesPPU {
@@ -20,6 +23,7 @@ pub struct NesPPU {
     pub mirroring: PPUMirroring,
     pub control_reg: ControlRegister,
     pub mask_reg: MaskRegister,
+    pub status_reg: StatusRegister,
 
     pub addr_reg: AddrRegister,
     internal_data_buf: u8,
@@ -55,6 +59,7 @@ impl NesPPU {
             control_reg: ControlRegister::new(),
             addr_reg: AddrRegister::new(),
             mask_reg: MaskRegister::new(),
+            status_reg: StatusRegister::new(),
             internal_data_buf: 0,
         }
     }
