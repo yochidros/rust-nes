@@ -54,6 +54,7 @@ impl NesPPU {
             oam_data: [0; 64 * 4],
             control_reg: ControlRegister::new(),
             addr_reg: AddrRegister::new(),
+            mask_reg: MaskRegister::new(),
             internal_data_buf: 0,
         }
     }
