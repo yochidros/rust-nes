@@ -199,4 +199,21 @@ impl NesPPU {
             _ => vram_index,
         }
     }
+    pub fn new_empty_rom() -> Self {
+        NesPPU::new(vec![0; 2048], PPUMirroring::Horizontal)
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+
+    #[test]
+    fn test_ppu_vram_writes() {
+        let mut ppu = NesPPU::new_empty_rom();
+        ppu.write_to_ppu_addr(0x23);
+        ppu.write_to_ppu_addr(0x05);
+        ppu.write_to_data(0x66);
+        assert_eq!(ppu.vram[0x0305], 0x66);
+    }
 }
