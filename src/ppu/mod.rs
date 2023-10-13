@@ -1,14 +1,9 @@
-pub mod addr_register;
-pub mod control_register;
-pub mod mask_register;
-pub mod status_register;
+pub mod register;
 
-use addr_register::AddrRegister;
-
-use self::{
-    control_register::ControlRegister, mask_register::MaskRegister, status_register::StatusRegister,
+use register::{
+    addr_register::AddrRegister, control_register::ControlRegister, mask_register::MaskRegister,
+    scroll_register::ScrollRegister, status_register::StatusRegister,
 };
-
 #[derive(Debug)]
 pub struct NesPPU {
     // visiual of a game stored
@@ -24,6 +19,7 @@ pub struct NesPPU {
     pub control_reg: ControlRegister,
     pub mask_reg: MaskRegister,
     pub status_reg: StatusRegister,
+    pub scroll_register: ScrollRegister,
 
     pub addr_reg: AddrRegister,
     internal_data_buf: u8,
@@ -60,6 +56,7 @@ impl NesPPU {
             addr_reg: AddrRegister::new(),
             mask_reg: MaskRegister::new(),
             status_reg: StatusRegister::new(),
+            scroll_register: ScrollRegister::new(),
             internal_data_buf: 0,
         }
     }
