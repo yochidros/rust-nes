@@ -13,7 +13,9 @@ pub struct NesPPU {
     // 2kiB banks of spaces to hold background info
     pub vram: [u8; 2048],
     // keep state of sprites
+    // https://www.nesdev.org/wiki/PPU_OAM
     pub oam_data: [u8; 256],
+    pub oam_addr: u8,
 
     pub mirroring: PPUMirroring,
     pub control_reg: ControlRegister,
@@ -34,14 +36,20 @@ pub enum PPUMirroring {
 
 pub trait PPU {
     fn write_to_control_reg(&mut self, value: u8);
-    fn write_to_oam_data(&mut self, value: u8);
+    fn write_to_mask_reg(&mut self, value: u8);
 
+    fn write_to_oam_data(&mut self, value: u8);
+    fn write_to_oam_addr(&mut self, value: u8);
+
+    fn write_to_scroll_reg(&mut self, value: u8);
     fn write_to_ppu_addr(&mut self, value: u8);
     fn write_to_data(&mut self, value: u8);
 
     fn read_data(&mut self) -> u8;
     fn read_status(&mut self) -> u8;
     fn read_oam_data(&self) -> u8;
+
+    fn write_to_oam_dma(&mut self, value: &[u8; 256]);
 }
 
 impl NesPPU {
@@ -52,6 +60,7 @@ impl NesPPU {
             palette_table: [0; 32],
             vram: [0; 2048],
             oam_data: [0; 64 * 4],
+            oam_addr: 0,
             control_reg: ControlRegister::new(),
             addr_reg: AddrRegister::new(),
             mask_reg: MaskRegister::new(),
@@ -74,10 +83,35 @@ impl PPU for NesPPU {
     fn write_to_ppu_addr(&mut self, value: u8) {
         self.addr_reg.update(value);
     }
-    fn write_to_data(&mut self, value: u8) {}
+    fn write_to_data(&mut self, value: u8) {
+        let addr = self.addr_reg.get_addr();
+        match addr {
+            0..=0x1fff => {
+                println!("attempt to write to chr rom space {}", addr);
+            }
+            0x2000..=0x2fff => {
+                self.vram[self.get_mirror_vram_addr(addr) as usize] = value;
+            }
+            0x3000..=0x3eff => panic!(
+                "addr space 0x3000..0x3eff is not expected to be used, requested = {}",
+                addr
+            ),
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                let mirrored_addr = addr - 0x10;
+                self.palette_table[(mirrored_addr - 0x3000) as usize] = value;
+            }
+            0x3f00..=0x3fff => {
+                let mirrored_addr = addr - 0x3f00;
+                self.palette_table[mirrored_addr as usize] = value;
+            }
+            _ => panic!("unecpected access to mirrored space {}", addr),
+        }
+        self.increment_vram_addr();
+    }
 
     fn write_to_oam_data(&mut self, value: u8) {
-        todo!()
+        self.oam_data[self.oam_addr as usize] = value;
+        self.oam_addr = self.oam_addr.wrapping_add(1);
     }
 
     fn read_data(&mut self) -> u8 {
@@ -102,11 +136,38 @@ impl PPU for NesPPU {
             _ => panic!("unecpected access to mirrored space {}", addr),
         }
     }
+
     fn read_status(&mut self) -> u8 {
-        0
+        let value = self.status_reg.snapshot();
+        self.status_reg.reset_vblank_status();
+        self.addr_reg.reset_latch();
+        self.scroll_register.reset_latch();
+        value
     }
+
     fn read_oam_data(&self) -> u8 {
-        0
+        self.oam_data[self.oam_addr as usize]
+    }
+
+    fn write_to_mask_reg(&mut self, value: u8) {
+        self.mask_reg.update(value);
+    }
+
+    fn write_to_oam_addr(&mut self, value: u8) {
+        self.oam_addr = value;
+    }
+
+    fn write_to_scroll_reg(&mut self, value: u8) {
+        self.scroll_register.write(value);
+    }
+
+    // to fully initialize the OAM by writing OAMDATA 256 times
+    // using successive bytes from starting at address $100*N).
+    fn write_to_oam_dma(&mut self, value: &[u8; 256]) {
+        for x in value.iter() {
+            self.oam_data[self.oam_addr as usize] = *x;
+            self.oam_addr = self.oam_addr.wrapping_add(1);
+        }
     }
 }
 
