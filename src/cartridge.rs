@@ -1,3 +1,7 @@
+const NES_TAG: &[u8] = &[0x4e, 0x45, 0x53, 0x1a];
+const PRG_ROM_PAGE_SIZE: usize = 0x4000; //16384
+const CHR_ROM_PAGE_SIZE: usize = 0x2000; // 8192
+
 #[derive(Debug, PartialEq)]
 pub enum Mirroring {
     Horizontal,
@@ -12,9 +16,6 @@ pub struct ROM {
     pub mapper: u8,
     pub screen_mirroring: Mirroring,
 }
-const NES_TAG: &[u8] = &[0x4e, 0x45, 0x53, 0x1a];
-const PRG_ROM_PAGE_SIZE: usize = 0x4000; //16384
-const CHR_ROM_PAGE_SIZE: usize = 0x2000; // 8192
 
 impl ROM {
     pub fn new(raw: &Vec<u8>) -> Result<ROM, String> {

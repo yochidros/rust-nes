@@ -1,15 +1,16 @@
 mod bus;
 mod cartridge;
 mod cpu;
-mod flags;
+mod cpu_internals;
 mod mem;
-mod opscodes;
+mod ppu;
 mod trace;
 
+use crate::cpu::CPU;
 use cartridge::ROM;
-use cpu::CPU;
 use mem::Mem;
 use rand::*;
+
 use sdl2::{
     event::Event,
     keyboard::Keycode,
@@ -98,19 +99,19 @@ fn main() {
     let mut cpu = CPU::new(bus);
     cpu.reset();
     cpu.program_counter = 0xc000;
-    // let mut screen_state = [0 as u8; 32 * 3 * 32];
-    // let mut rng = rand::thread_rng();
+    let mut screen_state = [0 as u8; 32 * 3 * 32];
+    let mut rng = rand::thread_rng();
 
     cpu.run_with_callback(move |cpu| {
         println!("{}", trace(cpu));
-        // handle_user_input(cpu, &mut event_pump);
-        // cpu.mem_write(0xfe, rng.gen_range(1..16));
-        //
-        // if read_screen_state(cpu, &mut screen_state) {
-        //     texture.update(None, &screen_state, 32 * 3).unwrap();
-        //     canvas.copy(&texture, None, None).unwrap();
-        //     canvas.present();
-        // }
-        // ::std::thread::sleep(std::time::Duration::new(0, 70_000));
+        handle_user_input(cpu, &mut event_pump);
+        cpu.mem_write(0xfe, rng.gen_range(1..16));
+
+        if read_screen_state(cpu, &mut screen_state) {
+            texture.update(None, &screen_state, 32 * 3).unwrap();
+            canvas.copy(&texture, None, None).unwrap();
+            canvas.present();
+        }
+        ::std::thread::sleep(std::time::Duration::new(0, 70_000));
     });
 }

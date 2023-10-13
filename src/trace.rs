@@ -1,13 +1,11 @@
 use crate::cpu::CPU;
+use crate::cpu_internals::opscodes::AddressingMode;
+use crate::cpu_internals::opscodes::AddressingModeConverter;
+use crate::cpu_internals::opscodes::OPCODES_MAP;
 use crate::mem::Mem;
-use crate::opscodes::AddressingMode;
-use crate::opscodes::AddressingModeConverter;
-use crate::opscodes::OPCODES_MAP;
-use std::collections::HashMap;
 
 pub fn trace(cpu: &CPU) -> String {
     let code = cpu.mem_read(cpu.program_counter);
-    // println!("trace {:x}", code);
     let ops = OPCODES_MAP.get(&code).unwrap();
 
     let begin = cpu.program_counter;

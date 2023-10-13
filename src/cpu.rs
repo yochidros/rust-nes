@@ -1,13 +1,16 @@
 use crate::bus::Bus;
-use crate::flags::*;
+use crate::cpu_internals::flags::*;
+use crate::cpu_internals::opscodes::*;
 use crate::mem::*;
-use crate::opscodes::*;
+
+const STACK_BASE: u16 = 0x0100;
 
 #[derive(Debug)]
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
+
     pub status: StatusFlags,
     pub program_counter: u16,
     pub stack_pointer: u8,
@@ -15,8 +18,6 @@ pub struct CPU {
 
     memory: [u8; 0xffff],
 }
-
-const STACK_BASE: u16 = 0x0100;
 
 impl CPU {
     #[allow(dead_code)]
@@ -1114,15 +1115,6 @@ impl CPU {
     }
     fn nop(&self) {}
 
-    // NVRB_DIZC (R 予約済み　使用できない)
-    // N: negative
-    // V: overflow
-    // R: reserved
-    // B: break command
-    // D: decimal mode
-    // I: interrupt diable
-    // Z: zero flag set if value == 0
-    // C: Carry
     fn update_zero_and_negative_flags(&mut self, value: u8) {
         self.status = if value == 0 {
             self.status | StatusFlags::ZERO
