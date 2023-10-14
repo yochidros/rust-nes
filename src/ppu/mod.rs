@@ -24,7 +24,10 @@ pub struct NesPPU {
     pub scroll_register: ScrollRegister,
 
     pub addr_reg: AddrRegister,
+    pub cycles: usize,
+    pub scanlines: u16,
     internal_data_buf: u8,
+    pub nmi_interrupt: Option<u8>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -66,18 +69,55 @@ impl NesPPU {
             mask_reg: MaskRegister::new(),
             status_reg: StatusRegister::new(),
             scroll_register: ScrollRegister::new(),
+            scanlines: 0,
+            cycles: 0,
             internal_data_buf: 0,
+            nmi_interrupt: None,
         }
     }
     fn increment_vram_addr(&mut self) {
         self.addr_reg
             .increment(self.control_reg.get_vram_addr_increment_value())
     }
+    // if scanaline over vblank, then start vblank interrupt
+    /// return is reset scanlines
+    pub fn tick(&mut self, cycles: u8) -> bool {
+        self.cycles += cycles as usize;
+        // 341 ppu cycles per scan line.
+        if self.cycles >= PPU_CYCLE_PER_SCAN_LINE {
+            self.cycles = self.cycles - PPU_CYCLE_PER_SCAN_LINE;
+            self.scanlines = 1;
+            if self.scanlines == PPU_START_VBLANK {
+                if self.control_reg.is_generate_vblank_nmi_on() {
+                    self.status_reg.update_vertical_blank_started(true);
+                    todo!();
+                }
+            }
+            if self.scanlines >= PPU_MAX_SCANLINE {
+                self.scanlines = 0;
+                self.status_reg.reset_vblank_status();
+                return true;
+            }
+        }
+        return false;
+    }
 }
+const PPU_CYCLE_PER_SCAN_LINE: usize = 341;
+const PPU_START_VBLANK: u16 = 241;
+const PPU_MAX_SCANLINE: u16 = 262;
 
 impl PPU for NesPPU {
     fn write_to_control_reg(&mut self, value: u8) {
-        self.control_reg.update(value)
+        // 1 or 32
+        let before_nmi_status = self.control_reg.is_generate_vblank_nmi_on();
+        self.control_reg.update(value);
+        // bfore off, after on & is in vblank mode.
+        if !before_nmi_status
+            && self.control_reg.is_generate_vblank_nmi_on()
+            && self.status_reg.is_in_vblank()
+        {
+            self.nmi_interrupt = Some(1);
+        }
     }
 
     fn write_to_ppu_addr(&mut self, value: u8) {

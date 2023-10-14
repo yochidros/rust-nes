@@ -1,4 +1,4 @@
-use crate::cpu::CPU;
+use crate::cpu_internals::cpu::CPU;
 use crate::cpu_internals::opscodes::AddressingMode;
 use crate::cpu_internals::opscodes::AddressingModeConverter;
 use crate::cpu_internals::opscodes::OPCODES_MAP;

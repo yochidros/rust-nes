@@ -1,12 +1,11 @@
 mod bus;
 mod cartridge;
-mod cpu;
 mod cpu_internals;
 mod mem;
 mod ppu;
 mod trace;
 
-use crate::cpu::CPU;
+use crate::cpu_internals::cpu::CPU;
 use cartridge::ROM;
 use mem::Mem;
 use rand::*;

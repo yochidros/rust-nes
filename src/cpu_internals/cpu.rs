@@ -136,11 +136,27 @@ impl CPU {
         self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program);
         self.mem_write_u16(0xfffc, 0x0600);
     }
+
+    fn interrupt_nmi(&mut self) {
+        self.stack_push_u16(self.program_counter);
+        let mut flag = self.status.clone();
+        flag.set(StatusFlags::BREAK, false);
+        flag.set(StatusFlags::RESERVED, true);
+
+        self.stack_push(flag.bits());
+        self.status.insert(StatusFlags::INTERRUPT_DISABLE);
+        self.bus.tick(2);
+        self.program_counter = self.mem_read_u16(0xfffa);
+    }
+
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
         F: FnMut(&mut CPU),
     {
         loop {
+            if let Some(_nmi) = self.bus.poll_nmi_status() {
+                self.interrupt_nmi();
+            }
             callback(self);
             let code = self.mem_read(self.program_counter);
             // println!(

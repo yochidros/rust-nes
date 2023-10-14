@@ -40,6 +40,8 @@ pub struct Bus {
     pub cpu_vram: [u8; 2048],
     pub rom: ROM,
     pub ppu: NesPPU,
+
+    pub cycles: usize,
 }
 
 impl ROM {
@@ -59,6 +61,7 @@ impl Bus {
             cpu_vram: [0; 2048],
             rom,
             ppu,
+            cycles: 0,
         }
     }
     pub fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -67,6 +70,17 @@ impl Bus {
             addr = addr % 0x4000;
         }
         self.rom.prg_rom[addr as usize]
+    }
+}
+impl Bus {
+    pub fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+        // ppu cycles 3x faster than cpu
+        self.ppu.tick(cycles * 3);
+    }
+
+    pub fn poll_nmi_status(&mut self) -> Option<u8> {
+        self.ppu.nmi_interrupt.take()
     }
 }
 impl Bus {
