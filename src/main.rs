@@ -3,6 +3,7 @@ mod cartridge;
 mod cpu_internals;
 mod mem;
 mod ppu;
+mod render;
 mod rendering;
 mod show_tile;
 mod trace;
@@ -10,8 +11,11 @@ mod trace;
 use crate::cpu_internals::cpu::CPU;
 use cartridge::ROM;
 use mem::Mem;
+use ppu::NesPPU;
 use rand::*;
 
+use render::render;
+use rendering::frame::Frame;
 use sdl2::{
     event::Event,
     keyboard::Keycode,
@@ -49,7 +53,7 @@ fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
         }
     }
 }
-fn read_screen_state(cpu: &CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
+fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
     let mut frame_idx = 0;
     let mut update = false;
     for i in 0x0200..0x600 {
@@ -97,14 +101,34 @@ fn main() {
         .unwrap();
 
     let args = std::env::args().nth(1).unwrap();
-    show_tile_viewer(canvas, texture, event_pump, args);
+    // show_tile_viewer(canvas, texture, event_pump, args);
 
-    // let bytes: Vec<u8> = std::fs::read(args.as_str()).unwrap();
-    // let rom = ROM::new(&bytes).unwrap();
+    let bytes: Vec<u8> = std::fs::read(args.as_str()).unwrap();
+    let rom = ROM::new(&bytes).unwrap();
+    let mut frame = Frame::new();
 
-    // let bus = bus::Bus::new(rom);
-    // let mut cpu = CPU::new(bus);
-    // cpu.reset();
+    let bus = bus::Bus::new(rom, move |ppu: &NesPPU| {
+        render(ppu, &mut frame);
+        texture.update(None, &frame.data, 256 * 3).unwrap();
+        canvas.copy(&texture, None, None).unwrap();
+
+        canvas.present();
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => std::process::exit(0),
+                _ => {}
+            }
+        }
+    });
+
+    let mut cpu = CPU::new(bus);
+    cpu.reset();
+    cpu.run();
     // cpu.program_counter = 0xc000;
     // let mut screen_state = [0 as u8; 32 * 3 * 32];
     // let mut rng = rand::thread_rng();

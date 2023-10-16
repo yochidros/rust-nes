@@ -16,8 +16,8 @@ pub enum AddressingMode {
     NonAddressing,
 }
 pub trait AddressingModeConverter {
-    fn get_absolute_address(&self, mode: &AddressingMode, addr: u16) -> u16;
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16;
+    fn get_absolute_address(&mut self, mode: &AddressingMode, addr: u16) -> (u16, bool);
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> (u16, bool);
 }
 
 #[derive(Debug)]

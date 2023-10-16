@@ -41,6 +41,9 @@ impl AddrRegister {
     pub fn increment(&mut self, inc_value: u8) {
         let old_lo = self.value.1;
         self.value.1 = self.value.1.wrapping_add(inc_value);
+        if old_lo > self.value.1 {
+            self.value.0 = self.value.0.wrapping_add(1);
+        }
         if self.get_addr() > VRAM_MAX_ADDR {
             self.set_addr(self.get_addr() & 0x3FFF);
         }

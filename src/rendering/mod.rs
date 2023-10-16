@@ -1,4 +1,5 @@
 pub mod frame;
+pub mod render_util;
 
 #[rustfmt::skip]
 pub static SYSTEM_PALLETE: [(u8, u8, u8); 64] = [

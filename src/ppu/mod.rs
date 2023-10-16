@@ -86,15 +86,20 @@ impl NesPPU {
         // 341 ppu cycles per scan line.
         if self.cycles >= PPU_CYCLE_PER_SCAN_LINE {
             self.cycles = self.cycles - PPU_CYCLE_PER_SCAN_LINE;
-            self.scanlines = 1;
+            self.scanlines += 1;
             if self.scanlines == PPU_START_VBLANK {
+                println!("start vblank");
+                self.status_reg.update_vertical_blank_started(true);
+                self.status_reg.update_sprite_0_hit(false);
                 if self.control_reg.is_generate_vblank_nmi_on() {
-                    self.status_reg.update_vertical_blank_started(true);
-                    todo!();
+                    self.nmi_interrupt = Some(1);
                 }
             }
             if self.scanlines >= PPU_MAX_SCANLINE {
+                println!("reset scanlines");
                 self.scanlines = 0;
+                self.nmi_interrupt = None;
+                self.status_reg.update_sprite_0_hit(false);
                 self.status_reg.reset_vblank_status();
                 return true;
             }
@@ -125,6 +130,7 @@ impl PPU for NesPPU {
     }
     fn write_to_data(&mut self, value: u8) {
         let addr = self.addr_reg.get_addr();
+        println!("addr {:x}", addr);
         match addr {
             0..=0x1fff => {
                 println!("attempt to write to chr rom space {}", addr);
@@ -138,11 +144,17 @@ impl PPU for NesPPU {
             ),
             0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
                 let mirrored_addr = addr - 0x10;
-                self.palette_table[(mirrored_addr - 0x3000) as usize] = value;
+                self.palette_table[(mirrored_addr - 0x3f00) as usize] = value;
             }
             0x3f00..=0x3fff => {
                 let mirrored_addr = addr - 0x3f00;
-                self.palette_table[mirrored_addr as usize] = value;
+                println!(
+                    "palette_table {:?} {}",
+                    self.palette_table,
+                    self.palette_table.len()
+                );
+                println!("mirrored_addr {:x}", mirrored_addr as usize);
+                self.palette_table[(addr - 0x3f00) as usize] = value;
             }
             _ => panic!("unecpected access to mirrored space {}", addr),
         }
@@ -165,13 +177,18 @@ impl PPU for NesPPU {
             }
             0x2000..=0x2fff => {
                 let result = self.internal_data_buf;
-                // self.internal_data_buf = self.vram[self.mi];
+                self.internal_data_buf = self.vram[self.get_mirror_vram_addr(addr) as usize];
                 result
             }
             0x3000..=0x3eff => panic!(
                 "addr space 0x3000..0x3eff is not expected to be used, requested = {}",
                 addr
             ),
+            //Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                let add_mirror = addr - 0x10;
+                self.palette_table[(add_mirror - 0x3f00) as usize]
+            }
             0x3f00..=0x3fff => self.palette_table[(addr - 0x3f00) as usize],
             _ => panic!("unecpected access to mirrored space {}", addr),
         }
@@ -229,7 +246,7 @@ impl NesPPU {
     //   [ A ] [ B ]
     //   [ a ] [ b ]
     pub fn get_mirror_vram_addr(&self, addr: u16) -> u16 {
-        let mirrored_vram = addr & 0b1011_1111_1111_1111; // mirror down 0x3000-0x3eff to 0x2000 - 0x2eff
+        let mirrored_vram = addr & 0b0010_1111_1111_1111; // mirror down 0x3000-0x3eff to 0x2000 - 0x2eff
         let vram_index = mirrored_vram - 0x2000; // convert to vram vector
         let name_table_index = vram_index / 0x400; // convert to the name table index
         match (&self.mirroring, name_table_index) {
