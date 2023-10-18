@@ -1,8 +1,8 @@
+use crate::cartridge::mem::Mem;
 use crate::cpu_internals::cpu::CPU;
 use crate::cpu_internals::opscodes::AddressingMode;
 use crate::cpu_internals::opscodes::AddressingModeConverter;
 use crate::cpu_internals::opscodes::OPCODES_MAP;
-use crate::mem::Mem;
 
 pub fn trace(cpu: &mut CPU) -> String {
     let code = cpu.mem_read(cpu.program_counter);
@@ -132,7 +132,7 @@ pub fn trace(cpu: &mut CPU) -> String {
 mod test {
     use super::*;
     use crate::bus::Bus;
-    use crate::cartridge::test::test_rom;
+    use crate::cartridge::rom::test::test_rom;
     use crate::ppu::NesPPU;
 
     #[test]

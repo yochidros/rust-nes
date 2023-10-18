@@ -130,7 +130,6 @@ impl PPU for NesPPU {
     }
     fn write_to_data(&mut self, value: u8) {
         let addr = self.addr_reg.get_addr();
-        println!("addr {:x}", addr);
         match addr {
             0..=0x1fff => {
                 println!("attempt to write to chr rom space {}", addr);

@@ -38,7 +38,6 @@ impl ROM {
 
         let prg_rom_size = raw[4] as usize * PRG_ROM_PAGE_SIZE;
         let chr_rom_size = raw[5] as usize * CHR_ROM_PAGE_SIZE;
-        println!("prg_rom_size: {:x}", prg_rom_size);
 
         let skip_trainer = raw[6] & 0b100 != 0;
 

@@ -1,13 +1,12 @@
 use sdl2::{
     event::Event,
     keyboard::Keycode,
-    pixels::PixelFormatEnum,
     render::{Canvas, Texture},
     video::Window,
 };
 
 use crate::{
-    cartridge::ROM,
+    cartridge::rom::ROM,
     rendering::{frame::Frame, SYSTEM_PALLETE},
 };
 

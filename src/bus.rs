@@ -1,5 +1,4 @@
-use crate::cartridge::{Mirroring, ROM};
-use crate::mem::Mem;
+use crate::cartridge::{mem::*, rom::Mirroring, rom::ROM};
 use crate::ppu::{NesPPU, PPUMirroring, PPU};
 
 //  _______________ $10000  _______________

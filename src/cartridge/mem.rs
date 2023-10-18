@@ -1,5 +1,3 @@
-use crate::{bus::Bus, ppu::PPU};
-
 pub trait Mem {
     fn mem_read(&mut self, addr: u16) -> u8;
     fn mem_write(&mut self, addr: u16, data: u8);
@@ -17,11 +15,6 @@ pub trait Mem {
         self.mem_write(pos + 1, hi_bits);
     }
 }
-const RAM: u16 = 0x0000;
-const RAM_MIRROS_END: u16 = 0x1fff;
-const PPU_REGISTERS_START: u16 = 0x2000;
-const PPU_REGISTERS_MIRROR_START: u16 = 0x2008;
-const PPU_REGISTERS_MIRROR_END: u16 = 0x3fff;
 
 pub trait Stack {
     fn stack_pop(&mut self) -> u8;

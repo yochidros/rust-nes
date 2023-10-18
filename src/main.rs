@@ -1,18 +1,15 @@
 mod bus;
 mod cartridge;
 mod cpu_internals;
-mod mem;
 mod ppu;
 mod render;
 mod rendering;
-mod show_tile;
-mod trace;
+mod utils;
 
 use crate::cpu_internals::cpu::CPU;
-use cartridge::ROM;
-use mem::Mem;
+use cartridge::mem::Mem;
+use cartridge::rom::ROM;
 use ppu::NesPPU;
-use rand::*;
 
 use render::render;
 use rendering::frame::Frame;
@@ -20,10 +17,9 @@ use sdl2::{
     event::Event,
     keyboard::Keycode,
     pixels::{Color, PixelFormatEnum},
+    rect::Point,
     EventPump,
 };
-use show_tile::show_tile_viewer;
-use trace::trace;
 
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
     for event in event_pump.poll_iter() {
@@ -112,6 +108,20 @@ fn main() {
         texture.update(None, &frame.data, 256 * 3).unwrap();
         canvas.copy(&texture, None, None).unwrap();
 
+        // draw grid lines
+        let tmp = canvas.draw_color();
+        for i in (8..256).step_by(8) {
+            canvas.set_draw_color(color(120));
+            canvas.set_blend_mode(sdl2::render::BlendMode::Add);
+            canvas
+                .draw_line(Point::new(i, 0), Point::new(i, 240))
+                .unwrap();
+            canvas
+                .draw_line(Point::new(0, i - 1), Point::new(256, i - 1))
+                .unwrap();
+            canvas.set_draw_color(tmp);
+        }
+
         canvas.present();
 
         for event in event_pump.poll_iter() {
@@ -129,20 +139,4 @@ fn main() {
     let mut cpu = CPU::new(bus);
     cpu.reset();
     cpu.run();
-    // cpu.program_counter = 0xc000;
-    // let mut screen_state = [0 as u8; 32 * 3 * 32];
-    // let mut rng = rand::thread_rng();
-    //
-    // cpu.run_with_callback(move |cpu| {
-    //     println!("{}", trace(cpu));
-    //     handle_user_input(cpu, &mut event_pump);
-    //     cpu.mem_write(0xfe, rng.gen_range(1..16));
-    //
-    //     if read_screen_state(cpu, &mut screen_state) {
-    //         texture.update(None, &screen_state, 32 * 3).unwrap();
-    //         canvas.copy(&texture, None, None).unwrap();
-    //         canvas.present();
-    //     }
-    //     ::std::thread::sleep(std::time::Duration::new(0, 70_000));
-    // });
 }

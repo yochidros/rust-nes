@@ -10,8 +10,6 @@ use crate::{
 pub fn render(ppu: &NesPPU, frame: &mut Frame) {
     let bank = ppu.control_reg.background_pattern_addr();
 
-    println!("bank {:x}", bank);
-
     for i in 0..0x03c0 {
         let tile = ppu.vram[i] as u16;
         let tile_column = i % 32;
@@ -44,17 +42,10 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
         let tile_idx = ppu.oam_data[i + 1] as u16;
         let tile_x = ppu.oam_data[i + 3] as usize;
         let tile_y = ppu.oam_data[i] as usize;
+        println!("tile: {} {} {}", i, tile_x, tile_y);
 
-        let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
-            true
-        } else {
-            false
-        };
-        let flip_horizontal = if ppu.oam_data[i + 2] >> 6 & 1 == 1 {
-            true
-        } else {
-            false
-        };
+        let flip_vertical = (ppu.oam_data[i + 2] >> 7 & 1) == 1;
+        let flip_horizontal = (ppu.oam_data[i + 2] >> 6 & 1) == 1;
 
         let pallette_idx = ppu.oam_data[i + 2] & 0b11;
         let sprite_palette = sprite_pallete(ppu, pallette_idx);
@@ -63,6 +54,11 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
         let start = (bank + tile_idx * 16) as usize;
         let end = (bank + tile_idx * 16 + 15) as usize;
         let tile = &ppu.chr_rom[start..=end];
+        if i == 0 {
+            println!("tile: {} start {} end {} {:?}", i, start, end, tile);
+        } else {
+            continue;
+        }
 
         for y in 0..=7 {
             let mut upper = tile[y];

@@ -1,8 +1,8 @@
 use crate::bus::Bus;
+use crate::cartridge::mem::*;
+use crate::cartridge::rom::*;
 use crate::cpu_internals::flags::*;
 use crate::cpu_internals::opscodes::*;
-use crate::mem::*;
-use crate::ppu::NesPPU;
 
 const STACK_BASE: u16 = 0x0100;
 
@@ -1183,7 +1183,7 @@ mod test {
             status: StatusFlags::from_bits_truncate(0b100100),
             program_counter: 0,
             stack_pointer: 0,
-            bus: Bus::new(crate::cartridge::test::test_rom(), |ppu: &NesPPU| {}),
+            bus: Bus::new(crate::cartridge::rom::test::test_rom(), |_| {}),
             memory: [0; 0xffff],
         }
     }
