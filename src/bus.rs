@@ -1,4 +1,5 @@
 use crate::cartridge::{mem::*, rom::Mirroring, rom::ROM};
+use crate::joypad::Joypad;
 use crate::ppu::{NesPPU, PPUMirroring, PPU};
 
 //  _______________ $10000  _______________
@@ -39,9 +40,10 @@ pub struct Bus<'call> {
     pub cpu_vram: [u8; 2048],
     pub rom: ROM,
     pub ppu: NesPPU,
+    pub joypad: Joypad,
 
     pub cycles: usize,
-    gameloop_callback: Box<dyn FnMut(&NesPPU) + 'call>,
+    gameloop_callback: Box<dyn FnMut(&NesPPU, &mut Joypad) + 'call>,
 }
 
 impl ROM {
@@ -57,13 +59,14 @@ impl ROM {
 impl<'a> Bus<'a> {
     pub fn new<'call, F>(rom: ROM, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&NesPPU) + 'call,
+        F: FnMut(&NesPPU, &mut Joypad) + 'call,
     {
         let ppu = NesPPU::new(rom.chr_rom.clone(), rom.to_PPUMirroring());
         Bus {
             cpu_vram: [0; 2048],
             rom,
             ppu,
+            joypad: Joypad::new(),
             cycles: 0,
             gameloop_callback: Box::from(gameloop_callback),
         }
@@ -83,7 +86,7 @@ impl<'a> Bus<'a> {
         let is_new_frame = self.ppu.tick(cycles * 3);
 
         if is_new_frame {
-            (self.gameloop_callback)(&self.ppu);
+            (self.gameloop_callback)(&self.ppu, &mut self.joypad);
         }
     }
 
@@ -166,7 +169,8 @@ impl Mem for Bus<'_> {
             0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
             0x4000..=0x4015 => 0, // apu
-            0x4016 | 0x4017 => 0, // joypad 1 or 2
+            0x4016 => self.joypad.read(),
+            0x4017 => 0, // joypad 1 or 2
             PPU_REGISTERS_MIRROR_START..=PPU_REGISTERS_MIRROR_END => {
                 let _mirror_down_addr = addr & 0b0010_0000_0000_0111;
                 self.mem_read(_mirror_down_addr)
@@ -198,7 +202,8 @@ impl Mem for Bus<'_> {
                 self.mem_write(_mirror_down_addr, data);
             }
             0x4000..=0x4013 | 0x4015 => {} // apu
-            0x4016 | 0x4017 => {}          // joypad 1 or 2
+            0x4016 => self.joypad.write(data),
+            0x4017 => {} // joypad 1 or 2
             // https://wiki.nesdev.com/w/index.php/PPU_programmer_reference#OAM_DMA_.28.244014.29_.3E_write
             0x4014 => {
                 let mut buffer: [u8; 256] = [0; 256];

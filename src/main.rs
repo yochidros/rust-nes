@@ -1,14 +1,18 @@
 mod bus;
 mod cartridge;
 mod cpu_internals;
+mod joypad;
 mod ppu;
 mod render;
 mod rendering;
 mod utils;
 
+use std::collections::HashMap;
+
 use crate::cpu_internals::cpu::CPU;
 use cartridge::mem::Mem;
 use cartridge::rom::ROM;
+use joypad::Joypad;
 use ppu::NesPPU;
 
 use render::render;
@@ -103,7 +107,17 @@ fn main() {
     let rom = ROM::new(&bytes).unwrap();
     let mut frame = Frame::new();
 
-    let bus = bus::Bus::new(rom, move |ppu: &NesPPU| {
+    let mut key_map = HashMap::new();
+    key_map.insert(Keycode::W, joypad::JoypadButton::UP);
+    key_map.insert(Keycode::A, joypad::JoypadButton::LEFT);
+    key_map.insert(Keycode::S, joypad::JoypadButton::DOWN);
+    key_map.insert(Keycode::D, joypad::JoypadButton::RIGHT);
+    key_map.insert(Keycode::Space, joypad::JoypadButton::SELECT);
+    key_map.insert(Keycode::Return, joypad::JoypadButton::START);
+    key_map.insert(Keycode::H, joypad::JoypadButton::BUTTON_A);
+    key_map.insert(Keycode::J, joypad::JoypadButton::BUTTON_B);
+
+    let bus = bus::Bus::new(rom, move |ppu: &NesPPU, joypad: &mut Joypad| {
         render(ppu, &mut frame);
         texture.update(None, &frame.data, 256 * 3).unwrap();
         canvas.copy(&texture, None, None).unwrap();
@@ -131,6 +145,18 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => std::process::exit(0),
+                Event::KeyDown { keycode, .. } => {
+                    println!("DOWN {:?}", keycode);
+                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                        joypad.set_button_pressed_status(key.clone(), true);
+                    }
+                }
+                Event::KeyUp { keycode, .. } => {
+                    println!("UP {:?}", keycode);
+                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                        joypad.set_button_pressed_status(key.clone(), false);
+                    }
+                }
                 _ => {}
             }
         }

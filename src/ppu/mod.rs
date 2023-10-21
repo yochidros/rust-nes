@@ -107,7 +107,7 @@ impl NesPPU {
                 }
             }
             if self.scanlines >= PPU_MAX_SCANLINE {
-                println!("reset scanlines {}", self.cycles);
+                // println!("reset scanlines {}", self.cycles);
                 self.scanlines = 0;
                 self.nmi_interrupt = None;
                 self.status_reg.update_sprite_0_hit(false);
