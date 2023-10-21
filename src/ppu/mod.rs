@@ -79,16 +79,27 @@ impl NesPPU {
         self.addr_reg
             .increment(self.control_reg.get_vram_addr_increment_value())
     }
+    fn is_sprite_0_hit(&self, cycle: usize) -> bool {
+        let y = self.oam_data[0] as usize;
+        let x = self.oam_data[3] as usize;
+        (y == self.scanlines as usize) && x <= cycle && self.mask_reg.show_sprites()
+    }
     // if scanaline over vblank, then start vblank interrupt
     /// return is reset scanlines
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
         // 341 ppu cycles per scan line.
         if self.cycles >= PPU_CYCLE_PER_SCAN_LINE {
+            if self.is_sprite_0_hit(self.cycles) {
+                self.status_reg.update_sprite_0_hit(true);
+                // println!("sprite 0 hit");
+            }
+
             self.cycles = self.cycles - PPU_CYCLE_PER_SCAN_LINE;
             self.scanlines += 1;
+
             if self.scanlines == PPU_START_VBLANK {
-                println!("start vblank");
+                // println!("start vblank");
                 self.status_reg.update_vertical_blank_started(true);
                 self.status_reg.update_sprite_0_hit(false);
                 if self.control_reg.is_generate_vblank_nmi_on() {
@@ -96,7 +107,7 @@ impl NesPPU {
                 }
             }
             if self.scanlines >= PPU_MAX_SCANLINE {
-                println!("reset scanlines");
+                println!("reset scanlines {}", self.cycles);
                 self.scanlines = 0;
                 self.nmi_interrupt = None;
                 self.status_reg.update_sprite_0_hit(false);
@@ -137,23 +148,19 @@ impl PPU for NesPPU {
             0x2000..=0x2fff => {
                 self.vram[self.get_mirror_vram_addr(addr) as usize] = value;
             }
-            0x3000..=0x3eff => panic!(
-                "addr space 0x3000..0x3eff is not expected to be used, requested = {}",
-                addr
-            ),
+            0x3000..=0x3eff => {
+                println!(
+                    "addr space 0x3000..0x3eff is not expected to be used, requested = {:x}",
+                    addr
+                )
+            }
             0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
                 let mirrored_addr = addr - 0x10;
                 self.palette_table[(mirrored_addr - 0x3f00) as usize] = value;
             }
             0x3f00..=0x3fff => {
                 let mirrored_addr = addr - 0x3f00;
-                println!(
-                    "palette_table {:?} {}",
-                    self.palette_table,
-                    self.palette_table.len()
-                );
-                println!("mirrored_addr {:x}", mirrored_addr as usize);
-                self.palette_table[(addr - 0x3f00) as usize] = value;
+                self.palette_table[mirrored_addr as usize] = value;
             }
             _ => panic!("unecpected access to mirrored space {}", addr),
         }
@@ -161,6 +168,7 @@ impl PPU for NesPPU {
     }
 
     fn write_to_oam_data(&mut self, value: u8) {
+        println!("oam {:08b} {:x}", value, self.oam_addr);
         self.oam_data[self.oam_addr as usize] = value;
         self.oam_addr = self.oam_addr.wrapping_add(1);
     }

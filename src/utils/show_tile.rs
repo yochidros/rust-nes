@@ -58,7 +58,7 @@ pub fn show_tile_viewer(
 ) {
     let bytes: Vec<u8> = std::fs::read(nes_file_name.as_str()).unwrap();
     let rom = ROM::new(&bytes).unwrap();
-    let tile_frame = show_tile_bank(&rom.chr_rom, 0);
+    let tile_frame = show_tile_bank(&rom.chr_rom, 1);
     texture.update(None, &tile_frame.data, 256 * 3).unwrap();
     canvas.copy(&texture, None, None).unwrap();
     canvas.present();

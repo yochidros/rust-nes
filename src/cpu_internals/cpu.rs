@@ -75,6 +75,13 @@ impl<'a> AddressingModeConverter for CPU<'a> {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 return (deref, self.page_cross(deref, deref_base));
             }
+            AddressingMode::Relative => {
+                let base = self.mem_read_u16(self.program_counter);
+                return (
+                    self.program_counter.wrapping_add(base),
+                    self.page_cross(self.program_counter.wrapping_add(base), base),
+                );
+            }
             _ => panic!("mode {:?} is not supported", mode),
         }
     }
@@ -258,35 +265,35 @@ impl CPU<'_> {
                 }
                 // BCS
                 0xb0 => {
-                    self.branch(self.status.contains(StatusFlags::CARRY));
+                    self.branch(self.status.contains(StatusFlags::CARRY), &opcode.mode);
                 }
                 // BCC
                 0x90 => {
-                    self.branch(!self.status.contains(StatusFlags::CARRY));
+                    self.branch(!self.status.contains(StatusFlags::CARRY), &opcode.mode);
                 }
                 // BEQ
                 0xf0 => {
-                    self.branch(self.status.contains(StatusFlags::ZERO));
+                    self.branch(self.status.contains(StatusFlags::ZERO), &opcode.mode);
                 }
                 // BNE
                 0xd0 => {
-                    self.branch(!self.status.contains(StatusFlags::ZERO));
+                    self.branch(!self.status.contains(StatusFlags::ZERO), &opcode.mode);
                 }
                 // BVS
                 0x70 => {
-                    self.branch(self.status.contains(StatusFlags::OVERFLOW));
+                    self.branch(self.status.contains(StatusFlags::OVERFLOW), &opcode.mode);
                 }
                 // BVC
                 0x50 => {
-                    self.branch(!self.status.contains(StatusFlags::OVERFLOW));
+                    self.branch(!self.status.contains(StatusFlags::OVERFLOW), &opcode.mode);
                 }
                 // BPL
                 0x10 => {
-                    self.branch(!self.status.contains(StatusFlags::NEGATIVE));
+                    self.branch(!self.status.contains(StatusFlags::NEGATIVE), &opcode.mode);
                 }
                 // BMI
                 0x30 => {
-                    self.branch(self.status.contains(StatusFlags::NEGATIVE));
+                    self.branch(self.status.contains(StatusFlags::NEGATIVE), &opcode.mode);
                 }
                 // TSX
                 0xba => {
@@ -927,14 +934,28 @@ impl<'a> CPU<'a> {
             self.bus.tick(1);
         }
     }
-    fn branch(&mut self, condition: bool) {
+    fn branch(&mut self, condition: bool, mode: &AddressingMode) {
         if condition {
-            let offset = self.mem_read(self.program_counter) as i8;
-            let jump_addr = self
-                .program_counter
-                .wrapping_add(1)
-                .wrapping_add(offset as u16);
-            self.program_counter = jump_addr;
+            let offset = self.mem_read(self.program_counter) as i16;
+            let mut tmp = self.program_counter.wrapping_add(1);
+            let jump_addr: u16;
+            if offset >= 128 {
+                jump_addr = tmp.wrapping_add((offset - 256) as u16);
+            } else {
+                jump_addr = tmp.wrapping_add(offset as u16);
+            }
+            self.program_counter = jump_addr & 0xFFFF;
+            // let jump_addr = self
+            //     .program_counter
+            //     .wrapping_add(1)
+            //     .wrapping_add(offset as u16);
+            // self.program_counter = jump_addr;
+            let t = if ((tmp ^ self.program_counter) & 0x100) > 0 {
+                2
+            } else {
+                1
+            };
+            self.bus.tick(t);
         }
     }
 

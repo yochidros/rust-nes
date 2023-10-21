@@ -13,7 +13,9 @@ pub fn trace(cpu: &mut CPU) -> String {
     hex_dump.push(code);
 
     let (mem_addr, stored_value) = match ops.mode {
-        AddressingMode::Immediate | AddressingMode::NonAddressing => (0, 0),
+        AddressingMode::Immediate | AddressingMode::NonAddressing | AddressingMode::Relative => {
+            (0, 0)
+        }
         _ => {
             let (addr, _) = cpu.get_absolute_address(&ops.mode, begin + 1);
             (addr, cpu.mem_read(addr))
@@ -32,6 +34,9 @@ pub fn trace(cpu: &mut CPU) -> String {
 
             match ops.mode {
                 AddressingMode::Immediate => format!("#${:02x}", address),
+                AddressingMode::Relative => {
+                    format!("#${:02x}", cpu.program_counter.wrapping_add(address as u16))
+                }
                 AddressingMode::ZeroPage => format!("${:02x} = {:02x}", mem_addr, stored_value),
                 AddressingMode::ZeroPage_X => format!(
                     "${:02x},X @ {:02x} = {:02x}",
@@ -94,6 +99,7 @@ pub fn trace(cpu: &mut CPU) -> String {
                         format!("${:04x}", address)
                     }
                 }
+
                 AddressingMode::Absolute => format!("${:04x} = {:02x}", mem_addr, stored_value),
                 AddressingMode::Absolute_X => format!(
                     "${:04x},X @ {:04x} = {:02x}",

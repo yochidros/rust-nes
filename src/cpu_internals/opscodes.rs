@@ -13,6 +13,7 @@ pub enum AddressingMode {
     Absolute_Y,
     Indirect_X,
     Indirect_Y,
+    Relative,
     NonAddressing,
 }
 pub trait AddressingModeConverter {
@@ -51,21 +52,21 @@ pub static CPU_OPS_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
     vec![
         OpCode::new("BRK", 0x00, 1, 7, AddressingMode::NonAddressing),
         // BCS
-        OpCode::new("BCS", 0xb0, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BCS", 0xb0, 2, 2, AddressingMode::Relative),
         // BCC
-        OpCode::new("BCC", 0x90, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BCC", 0x90, 2, 2, AddressingMode::Relative),
         // BEQ
-        OpCode::new("BEQ", 0xf0, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BEQ", 0xf0, 2, 2, AddressingMode::Relative),
         // BVC
-        OpCode::new("BVC", 0x50, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BVC", 0x50, 2, 2, AddressingMode::Relative),
         // BVS
-        OpCode::new("BVS", 0x70, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BVS", 0x70, 2, 2, AddressingMode::Relative),
         // BNE
-        OpCode::new("BNE", 0xd0, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BNE", 0xd0, 2, 2, AddressingMode::Relative),
         // BPL
-        OpCode::new("BPL", 0x10, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BPL", 0x10, 2, 2, AddressingMode::Relative),
         // BMI
-        OpCode::new("BMI", 0x30, 2, 2, AddressingMode::NonAddressing),
+        OpCode::new("BMI", 0x30, 2, 2, AddressingMode::Relative),
         // TSX
         OpCode::new("TSX", 0xba, 1, 2, AddressingMode::NonAddressing),
         // TXS
