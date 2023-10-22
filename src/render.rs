@@ -1,29 +1,41 @@
 use crate::{
-    ppu::NesPPU,
+    ppu::{NesPPU, PPUMirroring},
     rendering::{
         frame::Frame,
+        rect::Rect,
         render_util::{bg_pallette, sprite_pallete},
         SYSTEM_PALLETE,
     },
 };
 
-pub fn render(ppu: &NesPPU, frame: &mut Frame) {
+pub fn render_name_table(
+    ppu: &NesPPU,
+    frame: &mut Frame,
+    name_table: &[u8],
+    view_port: Rect,
+    shift_x: isize,
+    shift_y: isize,
+) {
     let bank = ppu.control_reg.background_pattern_addr();
 
-    // display background
-    for i in 0..0x03c0 {
-        let tile = ppu.vram[i] as u16;
+    let attrs_table = &name_table[0x3c0..=0x3ff];
+
+    // 960 tiles for background
+    for i in 0..0x3c0 {
         let tile_column = i % 32;
         let tile_row = i / 32;
-        let s = (bank + tile * 16) as usize;
-        let e = (bank + tile * 16 + 15) as usize;
-        let tile = &ppu.chr_rom[s..=e];
-        let palette = bg_pallette(ppu, tile_column, tile_row);
-        for y in 0..=7 {
+        let tile_idx = name_table[i] as u16;
+
+        let start = (bank + tile_idx * 16) as usize;
+        let end = (bank + tile_idx * 16 + 15) as usize;
+        let tile = &ppu.chr_rom[start..=end];
+        let palette = bg_pallette(ppu, attrs_table, tile_column, tile_row);
+
+        for y in 0..8 {
             let mut upper = tile[y];
             let mut lower = tile[y + 8];
 
-            for x in (0..=7).rev() {
+            for x in (0..8).rev() {
                 let value = (1 & lower) << 1 | (1 & upper);
                 upper = upper >> 1;
                 lower = lower >> 1;
@@ -34,10 +46,102 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
                     3 => SYSTEM_PALLETE[palette[3] as usize],
                     _ => panic!("can't be"),
                 };
-                frame.set_pixel(tile_column * 8 + x, tile_row * 8 + y, rgb);
+                let pixel_x = tile_column * 8 + x;
+                let pixel_y = tile_row * 8 + y;
+
+                if pixel_x >= view_port.x1
+                    && pixel_x < view_port.x2
+                    && pixel_y >= view_port.y1
+                    && pixel_y < view_port.y2
+                {
+                    frame.set_pixel(
+                        (shift_x + pixel_x as isize) as usize,
+                        (shift_y + pixel_y as isize) as usize,
+                        rgb,
+                    );
+                }
             }
         }
     }
+}
+pub fn render(ppu: &NesPPU, frame: &mut Frame) {
+    println!("v");
+    let scroll_x = (ppu.scroll_register.scroll_x) as usize;
+    let scroll_y = (ppu.scroll_register.scroll_y) as usize;
+
+    let (main_nametable, second_nametable) =
+        match (&ppu.mirroring, ppu.control_reg.nametable_addr()) {
+            (PPUMirroring::Vertical, 0x2000)
+            | (PPUMirroring::Vertical, 0x2800)
+            | (PPUMirroring::Horizontal, 0x2000)
+            | (PPUMirroring::Horizontal, 0x2400) => (&ppu.vram[0..0x400], &ppu.vram[0x400..0x800]),
+            (PPUMirroring::Vertical, 0x2400)
+            | (PPUMirroring::Vertical, 0x2c00)
+            | (PPUMirroring::Horizontal, 0x2800)
+            | (PPUMirroring::Horizontal, 0x2c00) => (&ppu.vram[0x400..0x800], &ppu.vram[0..0x400]),
+            _ => {
+                panic!("not implemented yet")
+            }
+        };
+    render_name_table(
+        ppu,
+        frame,
+        main_nametable,
+        Rect::new(scroll_x, 256, scroll_y, 240),
+        -(scroll_x as isize),
+        -(scroll_y as isize),
+    );
+    println!("scroll_x: {}, scroll_y: {}", scroll_x, scroll_y);
+    if scroll_x > 0 {
+        render_name_table(
+            ppu,
+            frame,
+            second_nametable,
+            Rect::new(0, scroll_x, 0, 240),
+            (256 - scroll_x) as isize,
+            0,
+        );
+    } else if scroll_y > 0 {
+        render_name_table(
+            ppu,
+            frame,
+            second_nametable,
+            Rect::new(0, 256, 0, scroll_y),
+            0,
+            (240 - scroll_y) as isize,
+        );
+    }
+
+    // let bank = ppu.control_reg.background_pattern_addr();
+    //
+    // // display background
+    // for i in 0..0x03c0 {
+    //     let tile = ppu.vram[i] as u16;
+    //     let tile_column = i % 32;
+    //     let tile_row = i / 32;
+    //     let s = (bank + tile * 16) as usize;
+    //     let e = (bank + tile * 16 + 15) as usize;
+    //     let tile = &ppu.chr_rom[s..=e];
+    //     let palette = bg_pallette(ppu, tile_column, tile_row);
+    //     for y in 0..=7 {
+    //         let mut upper = tile[y];
+    //         let mut lower = tile[y + 8];
+    //
+    //         for x in (0..=7).rev() {
+    //             let value = (1 & lower) << 1 | (1 & upper);
+    //             upper = upper >> 1;
+    //             lower = lower >> 1;
+    //             let rgb = match value {
+    //                 0 => SYSTEM_PALLETE[ppu.palette_table[0] as usize],
+    //                 1 => SYSTEM_PALLETE[palette[1] as usize],
+    //                 2 => SYSTEM_PALLETE[palette[2] as usize],
+    //                 3 => SYSTEM_PALLETE[palette[3] as usize],
+    //                 _ => panic!("can't be"),
+    //             };
+    //             frame.set_pixel(tile_column * 8 + x, tile_row * 8 + y, rgb);
+    //         }
+    //     }
+    // }
 
     // display sprite
     let bank: u16 = ppu.control_reg.sprite_pattern_addr();

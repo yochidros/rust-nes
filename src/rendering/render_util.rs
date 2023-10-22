@@ -1,8 +1,15 @@
 use crate::ppu::NesPPU;
 
-pub fn bg_pallette(ppu: &NesPPU, tile_column: usize, tile_row: usize) -> [u8; 4] {
+use super::{frame::Frame, rect::Rect};
+
+pub fn bg_pallette(
+    ppu: &NesPPU,
+    attrs_table: &[u8],
+    tile_column: usize,
+    tile_row: usize,
+) -> [u8; 4] {
     let attr_table_idx = tile_row / 4 * 8 + tile_column / 4;
-    let attr_byte = ppu.vram[0x3c0 + attr_table_idx];
+    let attr_byte = attrs_table[attr_table_idx];
 
     let pallete_idx = match (tile_column % 4 / 2, tile_row % 4 / 2) {
         (0, 0) => attr_byte & 0b11,

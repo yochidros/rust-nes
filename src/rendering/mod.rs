@@ -1,4 +1,5 @@
 pub mod frame;
+pub mod rect;
 pub mod render_util;
 
 #[rustfmt::skip]
