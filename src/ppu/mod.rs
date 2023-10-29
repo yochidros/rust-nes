@@ -159,7 +159,7 @@ impl PPU for NesPPU {
                 self.palette_table[(mirrored_addr - 0x3f00) as usize] = value;
             }
             0x3f00..=0x3fff => {
-                let mirrored_addr = addr - 0x3f00;
+                let mirrored_addr = (0x3f00 | (addr & 0x1f)) - 0x3f00;
                 self.palette_table[mirrored_addr as usize] = value;
             }
             _ => panic!("unecpected access to mirrored space {}", addr),

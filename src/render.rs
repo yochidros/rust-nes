@@ -65,9 +65,15 @@ pub fn render_name_table(
     }
 }
 pub fn render(ppu: &NesPPU, frame: &mut Frame) {
-    println!("v");
     let scroll_x = (ppu.scroll_register.scroll_x) as usize;
     let scroll_y = (ppu.scroll_register.scroll_y) as usize;
+    let fine_scroll_x = ppu.scroll_register.fine_scroll_x as usize;
+    let fine_scroll_y = ppu.scroll_register.fine_scroll_y as usize;
+    let adjusted_scroll_x = scroll_x + fine_scroll_x;
+    let adjusted_scroll_y = scroll_y + fine_scroll_y;
+
+    let extra_tile_x = if fine_scroll_x > 0 { 1 } else { 0 };
+    let extra_tile_y = if fine_scroll_y > 0 { 1 } else { 0 };
 
     let (main_nametable, second_nametable) =
         match (&ppu.mirroring, ppu.control_reg.nametable_addr()) {
@@ -87,7 +93,12 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
         ppu,
         frame,
         main_nametable,
-        Rect::new(scroll_x, 256, scroll_y, 240),
+        Rect::new(
+            adjusted_scroll_x,
+            adjusted_scroll_y,
+            256 + 8 * extra_tile_x,
+            240 + 8 * extra_tile_y,
+        ),
         -(scroll_x as isize),
         -(scroll_y as isize),
     );
@@ -97,7 +108,7 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
             ppu,
             frame,
             second_nametable,
-            Rect::new(0, scroll_x, 0, 240),
+            Rect::new(0, 0, scroll_x, 240),
             (256 - scroll_x) as isize,
             0,
         );
@@ -106,50 +117,19 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
             ppu,
             frame,
             second_nametable,
-            Rect::new(0, 256, 0, scroll_y),
+            Rect::new(0, 0, 256, scroll_y),
             0,
             (240 - scroll_y) as isize,
         );
     }
 
-    // let bank = ppu.control_reg.background_pattern_addr();
-    //
-    // // display background
-    // for i in 0..0x03c0 {
-    //     let tile = ppu.vram[i] as u16;
-    //     let tile_column = i % 32;
-    //     let tile_row = i / 32;
-    //     let s = (bank + tile * 16) as usize;
-    //     let e = (bank + tile * 16 + 15) as usize;
-    //     let tile = &ppu.chr_rom[s..=e];
-    //     let palette = bg_pallette(ppu, tile_column, tile_row);
-    //     for y in 0..=7 {
-    //         let mut upper = tile[y];
-    //         let mut lower = tile[y + 8];
-    //
-    //         for x in (0..=7).rev() {
-    //             let value = (1 & lower) << 1 | (1 & upper);
-    //             upper = upper >> 1;
-    //             lower = lower >> 1;
-    //             let rgb = match value {
-    //                 0 => SYSTEM_PALLETE[ppu.palette_table[0] as usize],
-    //                 1 => SYSTEM_PALLETE[palette[1] as usize],
-    //                 2 => SYSTEM_PALLETE[palette[2] as usize],
-    //                 3 => SYSTEM_PALLETE[palette[3] as usize],
-    //                 _ => panic!("can't be"),
-    //             };
-    //             frame.set_pixel(tile_column * 8 + x, tile_row * 8 + y, rgb);
-    //         }
-    //     }
-    // }
-
     // display sprite
     let bank: u16 = ppu.control_reg.sprite_pattern_addr();
     for i in (0..ppu.oam_data.len()).step_by(4).rev() {
-        let tile_y = ppu.oam_data[i] as usize;
+        let mut tile_y = ppu.oam_data[i] as usize;
         let tile_idx = ppu.oam_data[i + 1] as u16;
         let attrs = ppu.oam_data[i + 2];
-        let tile_x = ppu.oam_data[i + 3] as usize;
+        let mut tile_x = ppu.oam_data[i + 3] as usize;
 
         let flip_vertical = attrs >> 7 == 1;
         let flip_horizontal = attrs >> 6 & 0b01 == 1;

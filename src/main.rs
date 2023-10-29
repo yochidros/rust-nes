@@ -87,17 +87,17 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("nes game", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
+        .window("nes game", (256.0 * 4.0) as u32, (240.0 * 2.0) as u32)
         .position_centered()
         .build()
         .unwrap();
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    canvas.set_scale(3.0, 3.0).unwrap();
+    canvas.set_scale(2.0, 2.0).unwrap();
     let creator = canvas.texture_creator();
     let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
+        .create_texture_target(PixelFormatEnum::RGB24, 256 * 2, 240 * 2)
         .unwrap();
 
     let args = std::env::args().nth(1).unwrap();
@@ -119,23 +119,23 @@ fn main() {
 
     let bus = bus::Bus::new(rom, move |ppu: &NesPPU, joypad: &mut Joypad| {
         render(ppu, &mut frame);
-        texture.update(None, &frame.data, 256 * 3).unwrap();
+        texture.update(None, &frame.data, 256 * 2 * 3).unwrap();
         canvas.copy(&texture, None, None).unwrap();
 
-        // draw grid lines
-        let tmp = canvas.draw_color();
-        for i in (8..256).step_by(8) {
-            canvas.set_draw_color(color(120));
-            canvas.set_blend_mode(sdl2::render::BlendMode::Add);
-            canvas
-                .draw_line(Point::new(i, 0), Point::new(i, 240))
-                .unwrap();
-            canvas
-                .draw_line(Point::new(0, i - 1), Point::new(256, i - 1))
-                .unwrap();
-            canvas.set_draw_color(tmp);
-        }
-
+        // // draw grid lines
+        // let tmp = canvas.draw_color();
+        // for i in (8..256).step_by(8) {
+        //     canvas.set_draw_color(color(120));
+        //     canvas.set_blend_mode(sdl2::render::BlendMode::Add);
+        //     canvas
+        //         .draw_line(Point::new(i, 0), Point::new(i, 240))
+        //         .unwrap();
+        //     canvas
+        //         .draw_line(Point::new(0, i - 1), Point::new(256, i - 1))
+        //         .unwrap();
+        //     canvas.set_draw_color(tmp);
+        // }
+        //
         canvas.present();
 
         for event in event_pump.poll_iter() {
