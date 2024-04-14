@@ -1,5 +1,7 @@
+use std::usize;
+
 use crate::{
-    ppu::{NesPPU, PPUMirroring},
+    ppu::{register::status_register::StatusRegister, NesPPU, PPUMirroring},
     rendering::{
         frame::Frame,
         rect::Rect,
@@ -15,15 +17,25 @@ pub fn render_name_table(
     view_port: Rect,
     shift_x: isize,
     shift_y: isize,
+    draw_rect: &Rect,
+    scanlines: usize,
 ) {
     let bank = ppu.control_reg.background_pattern_addr();
 
     let attrs_table = &name_table[0x3c0..=0x3ff];
 
+    let start_scanline = draw_rect.y1;
+    let end_scanline = draw_rect.y2;
     // 960 tiles for background
-    for i in 0..0x3c0 {
+    for i in 0x0..0x3c0 {
+        //0x3c0 {
         let tile_column = i % 32;
         let tile_row = i / 32;
+        // Check if the current tile row is within the specified scanline range
+        if tile_row * 8 < start_scanline || tile_row * 8 > end_scanline {
+            continue; // Skip rendering this tile if it's outside the scanline range
+        }
+
         let tile_idx = name_table[i] as u16;
 
         let start = (bank + tile_idx * 16) as usize;
@@ -37,8 +49,8 @@ pub fn render_name_table(
 
             for x in (0..8).rev() {
                 let value = (1 & lower) << 1 | (1 & upper);
-                upper = upper >> 1;
-                lower = lower >> 1;
+                upper >>= 1;
+                lower >>= 1;
                 let rgb = match value {
                     0 => SYSTEM_PALLETE[ppu.palette_table[0] as usize],
                     1 => SYSTEM_PALLETE[palette[1] as usize],
@@ -54,17 +66,21 @@ pub fn render_name_table(
                     && pixel_y >= view_port.y1
                     && pixel_y < view_port.y2
                 {
-                    frame.set_pixel(
-                        (shift_x + pixel_x as isize) as usize,
-                        (shift_y + pixel_y as isize) as usize,
-                        rgb,
-                    );
+                    let x = (shift_x + pixel_x as isize) as usize;
+                    let y = (shift_y + pixel_y as isize) as usize;
+                    if x >= draw_rect.x1
+                        && x < draw_rect.x2
+                        && y >= draw_rect.y1
+                        && y < draw_rect.y2
+                    {
+                        frame.set_pixel(x, y - 8, rgb)
+                    }
                 }
             }
         }
     }
 }
-pub fn render(ppu: &NesPPU, frame: &mut Frame) {
+pub fn render(ppu: &NesPPU, frame: &mut Frame, scanlines: u16) {
     let scroll_x = (ppu.scroll_register.scroll_x) as usize;
     let scroll_y = (ppu.scroll_register.scroll_y) as usize;
     let fine_scroll_x = ppu.scroll_register.fine_scroll_x as usize;
@@ -89,20 +105,23 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
                 panic!("not implemented yet")
             }
         };
+    let draw_rect = Rect::new(0, scanlines as usize, 256, scanlines as usize + 8);
+
     render_name_table(
         ppu,
         frame,
         main_nametable,
         Rect::new(
-            adjusted_scroll_x,
-            adjusted_scroll_y,
+            scroll_x,
+            scroll_y,
             256 + 8 * extra_tile_x,
             240 + 8 * extra_tile_y,
         ),
         -(scroll_x as isize),
         -(scroll_y as isize),
+        &draw_rect,
+        scanlines as usize,
     );
-    println!("scroll_x: {}, scroll_y: {}", scroll_x, scroll_y);
     if scroll_x > 0 {
         render_name_table(
             ppu,
@@ -111,6 +130,8 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
             Rect::new(0, 0, scroll_x, 240),
             (256 - scroll_x) as isize,
             0,
+            &draw_rect,
+            scanlines as usize,
         );
     } else if scroll_y > 0 {
         render_name_table(
@@ -120,6 +141,8 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
             Rect::new(0, 0, 256, scroll_y),
             0,
             (240 - scroll_y) as isize,
+            &draw_rect,
+            scanlines as usize,
         );
     }
 
@@ -158,10 +181,10 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
                     _ => panic!("can't be"),
                 };
                 match (flip_horizontal, flip_vertical) {
-                    (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
-                    (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
-                    (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
-                    (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
+                    (false, false) => frame.set_pixel(tile_x + x, tile_y + y - 8, rgb),
+                    (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y - 8, rgb),
+                    (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y - 8, rgb),
+                    (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y - 8, rgb),
                 };
             }
         }

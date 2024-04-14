@@ -4,6 +4,8 @@ use register::{
     addr_register::AddrRegister, control_register::ControlRegister, mask_register::MaskRegister,
     scroll_register::ScrollRegister, status_register::StatusRegister,
 };
+
+use crate::{render, rendering::frame::Frame};
 #[derive(Debug)]
 pub struct NesPPU {
     // visiual of a game stored
@@ -47,6 +49,7 @@ pub trait PPU {
     fn write_to_scroll_reg(&mut self, value: u8);
     fn write_to_ppu_addr(&mut self, value: u8);
     fn write_to_data(&mut self, value: u8);
+    fn write_to_status_reg(&mut self, value: u8);
 
     fn read_data(&mut self) -> u8;
     fn read_status(&mut self) -> u8;
@@ -81,25 +84,28 @@ impl NesPPU {
     }
     fn is_sprite_0_hit(&self, cycle: usize) -> bool {
         let y = self.oam_data[0] as usize;
-        let x = self.oam_data[3] as usize;
-        (y == self.scanlines as usize) && x <= cycle && self.mask_reg.show_sprites()
+        // let x = self.oam_data[3] as usize;
+        // self.status_reg.ba
+        (y == self.scanlines as usize)
+            && self.mask_reg.show_background()
+            && self.mask_reg.show_sprites()
     }
     // if scanaline over vblank, then start vblank interrupt
     /// return is reset scanlines
-    pub fn tick(&mut self, cycles: u8) -> bool {
+    pub fn tick(&mut self, cycles: u8, frame: &mut Frame) {
         self.cycles += cycles as usize;
         // 341 ppu cycles per scan line.
         if self.cycles >= PPU_CYCLE_PER_SCAN_LINE {
             if self.is_sprite_0_hit(self.cycles) {
                 self.status_reg.update_sprite_0_hit(true);
-                // println!("sprite 0 hit");
+            }
+            self.cycles -= PPU_CYCLE_PER_SCAN_LINE;
+            self.scanlines += 1;
+            if self.scanlines <= 240 && self.scanlines % 8 == 0 {
+                render::render(self, frame, self.scanlines);
             }
 
-            self.cycles = self.cycles - PPU_CYCLE_PER_SCAN_LINE;
-            self.scanlines += 1;
-
             if self.scanlines == PPU_START_VBLANK {
-                // println!("start vblank");
                 self.status_reg.update_vertical_blank_started(true);
                 self.status_reg.update_sprite_0_hit(false);
                 if self.control_reg.is_generate_vblank_nmi_on() {
@@ -107,15 +113,12 @@ impl NesPPU {
                 }
             }
             if self.scanlines >= PPU_MAX_SCANLINE {
-                // println!("reset scanlines {}", self.cycles);
                 self.scanlines = 0;
                 self.nmi_interrupt = None;
                 self.status_reg.update_sprite_0_hit(false);
                 self.status_reg.reset_vblank_status();
-                return true;
             }
         }
-        return false;
     }
 }
 const PPU_CYCLE_PER_SCAN_LINE: usize = 341;
@@ -143,7 +146,7 @@ impl PPU for NesPPU {
         let addr = self.addr_reg.get_addr();
         match addr {
             0..=0x1fff => {
-                println!("attempt to write to chr rom space {}", addr);
+                self.chr_rom[addr as usize] = value;
             }
             0x2000..=0x2fff => {
                 self.vram[self.get_mirror_vram_addr(addr) as usize] = value;
@@ -215,6 +218,9 @@ impl PPU for NesPPU {
 
     fn write_to_mask_reg(&mut self, value: u8) {
         self.mask_reg.update(value);
+    }
+    fn write_to_status_reg(&mut self, value: u8) {
+        self.status_reg.update(value);
     }
 
     fn write_to_oam_addr(&mut self, value: u8) {

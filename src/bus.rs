@@ -1,6 +1,10 @@
+use bitflags::Flags;
+
+use crate::cartridge;
 use crate::cartridge::{mem::*, rom::Mirroring, rom::ROM};
 use crate::joypad::Joypad;
 use crate::ppu::{NesPPU, PPUMirroring, PPU};
+use crate::rendering::frame::Frame;
 
 //  _______________ $10000  _______________
 // | PRG-ROM       |       |               |
@@ -41,9 +45,10 @@ pub struct Bus<'call> {
     pub rom: ROM,
     pub ppu: NesPPU,
     pub joypad: Joypad,
+    pub frame: Frame,
 
     pub cycles: usize,
-    gameloop_callback: Box<dyn FnMut(&NesPPU, &mut Joypad) + 'call>,
+    gameloop_callback: Box<dyn FnMut(&NesPPU, &mut Joypad, &Frame) + 'call>,
 }
 
 impl ROM {
@@ -59,7 +64,7 @@ impl ROM {
 impl<'a> Bus<'a> {
     pub fn new<'call, F>(rom: ROM, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&NesPPU, &mut Joypad) + 'call,
+        F: FnMut(&NesPPU, &mut Joypad, &Frame) + 'call,
     {
         let ppu = NesPPU::new(rom.chr_rom.clone(), rom.to_PPUMirroring());
         Bus {
@@ -67,6 +72,7 @@ impl<'a> Bus<'a> {
             rom,
             ppu,
             joypad: Joypad::new(),
+            frame: Frame::new(),
             cycles: 0,
             gameloop_callback: Box::from(gameloop_callback),
         }
@@ -84,11 +90,11 @@ impl<'a> Bus<'a> {
         self.cycles += cycles as usize;
         // ppu cycles 3x faster than cpu
         let nmi_before = self.ppu.nmi_interrupt.is_some();
-        self.ppu.tick(cycles * 3);
+        self.ppu.tick(cycles * 3, &mut self.frame);
         let nmi_after = self.ppu.nmi_interrupt.is_some();
 
         if !nmi_before && nmi_after {
-            (self.gameloop_callback)(&self.ppu, &mut self.joypad);
+            (self.gameloop_callback)(&self.ppu, &mut self.joypad, &self.frame);
         }
     }
 
@@ -110,26 +116,27 @@ impl Mem for Bus<'_> {
                 let mirror_down_addr = addr & 0b0000_0111_1111_1111;
                 self.cpu_vram[mirror_down_addr as usize]
             }
-            0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => 0,
+            0x2000 => self.ppu.control_reg.bits(),
+            0x2001 => self.ppu.mask_reg.bits(),
+            0x2003 | 0x2005 | 0x2006 | 0x4014 => 0,
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
-            0x4000..=0x4015 => 0, // apu
-            0x4016 => self.joypad.read(),
-            0x4017 => 0, // joypad 1 or 2
             PPU_REGISTERS_MIRROR_START..=PPU_REGISTERS_MIRROR_END => {
                 let _mirror_down_addr = addr & 0b0010_0000_0000_0111;
                 self.mem_read(_mirror_down_addr)
             }
-            0x8000..=0xFFFF => self.read_prg_rom(addr),
+            0x4000..=0x4015 => 0, // apu
+            0x4016 => self.joypad.read(),
+            0x4017 => 0, // joypad 1 or 2
+            0x6000..=0xFFFF => self.read_prg_rom(addr),
             _ => {
-                println!("ignoring mem access at {:x}", addr);
+                panic!("ignoring mem access at {:x}", addr);
                 0
             }
         }
     }
     fn mem_write(&mut self, addr: u16, data: u8) {
-        // println!("mem_write {:x}, {:08b}", addr, data);
         match addr {
             RAM..=RAM_MIRROS_END => {
                 let mirror_down_addr = addr & 0b0000_0111_1111_1111;
@@ -137,7 +144,7 @@ impl Mem for Bus<'_> {
             }
             0x2000 => self.ppu.write_to_control_reg(data),
             0x2001 => self.ppu.write_to_mask_reg(data),
-            0x2002 => panic!("attempt towrite to PPU status register"),
+            0x2002 => self.ppu.write_to_status_reg(data),
             0x2003 => self.ppu.write_to_oam_addr(data),
             0x2004 => self.ppu.write_to_oam_data(data),
             0x2005 => self.ppu.write_to_scroll_reg(data),
@@ -159,11 +166,11 @@ impl Mem for Bus<'_> {
                 }
                 self.ppu.write_to_oam_dma(&buffer);
             }
-            0x8000..=0xFFFF => {
-                panic!("attempt to write to cartridge rom space");
+            0x4018..=0xFFFF => {
+                panic!("attempt to write to cartridge rom space, {:x}", addr);
             }
             _ => {
-                println!("ignoring mem write access at {}", addr);
+                panic!("ignoring mem write access at {}", addr);
             }
         }
     }

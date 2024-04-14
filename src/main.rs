@@ -87,25 +87,26 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("nes game", (256.0 * 4.0) as u32, (240.0 * 2.0) as u32)
+        .window("nes game", (256.0 * 2.0) as u32, (232.0 * 2.0) as u32)
         .position_centered()
         .build()
         .unwrap();
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    canvas.set_scale(2.0, 2.0).unwrap();
+    canvas.set_scale(1.0, 1.0).unwrap();
     let creator = canvas.texture_creator();
     let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 256 * 2, 240 * 2)
+        .create_texture_target(PixelFormatEnum::RGB24, 256, 232)
         .unwrap();
 
-    let args = std::env::args().nth(1).unwrap();
+    let args = match std::env::args().nth(1) {
+        Some(v) => v,
+        None => String::from("nestest.nes"),
+    };
     // show_tile_viewer(canvas, texture, event_pump, args);
-
     let bytes: Vec<u8> = std::fs::read(args.as_str()).unwrap();
     let rom = ROM::new(&bytes).unwrap();
-    let mut frame = Frame::new();
 
     let mut key_map = HashMap::new();
     key_map.insert(Keycode::W, joypad::JoypadButton::UP);
@@ -117,50 +118,52 @@ fn main() {
     key_map.insert(Keycode::H, joypad::JoypadButton::BUTTON_A);
     key_map.insert(Keycode::J, joypad::JoypadButton::BUTTON_B);
 
-    let bus = bus::Bus::new(rom, move |ppu: &NesPPU, joypad: &mut Joypad| {
-        render(ppu, &mut frame);
-        texture.update(None, &frame.data, 256 * 2 * 3).unwrap();
-        canvas.copy(&texture, None, None).unwrap();
+    let bus = bus::Bus::new(
+        rom,
+        move |ppu: &NesPPU, joypad: &mut Joypad, frame: &Frame| {
+            texture.update(None, &frame.data, 256 * 2 * 3).unwrap();
+            canvas.copy(&texture, None, None).unwrap();
 
-        // // draw grid lines
-        // let tmp = canvas.draw_color();
-        // for i in (8..256).step_by(8) {
-        //     canvas.set_draw_color(color(120));
-        //     canvas.set_blend_mode(sdl2::render::BlendMode::Add);
-        //     canvas
-        //         .draw_line(Point::new(i, 0), Point::new(i, 240))
-        //         .unwrap();
-        //     canvas
-        //         .draw_line(Point::new(0, i - 1), Point::new(256, i - 1))
-        //         .unwrap();
-        //     canvas.set_draw_color(tmp);
-        // }
-        //
-        canvas.present();
+            // // draw grid lines
+            // let tmp = canvas.draw_color();
+            // for i in (8..256).step_by(8) {
+            //     canvas.set_draw_color(color(120));
+            //     canvas.set_blend_mode(sdl2::render::BlendMode::Add);
+            //     canvas
+            //         .draw_line(Point::new(i, 0), Point::new(i, 240))
+            //         .unwrap();
+            //     canvas
+            //         .draw_line(Point::new(0, i - 1), Point::new(256, i - 1))
+            //         .unwrap();
+            //     canvas.set_draw_color(tmp);
+            // }
+            //
+            canvas.present();
 
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => std::process::exit(0),
-                Event::KeyDown { keycode, .. } => {
-                    println!("DOWN {:?}", keycode);
-                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                        joypad.set_button_pressed_status(key.clone(), true);
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => std::process::exit(0),
+                    Event::KeyDown { keycode, .. } => {
+                        // println!("DOWN {:?}", keycode);
+                        if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                            joypad.set_button_pressed_status(key.clone(), true);
+                        }
                     }
-                }
-                Event::KeyUp { keycode, .. } => {
-                    println!("UP {:?}", keycode);
-                    if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                        joypad.set_button_pressed_status(key.clone(), false);
+                    Event::KeyUp { keycode, .. } => {
+                        // println!("UP {:?}", keycode);
+                        if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+                            joypad.set_button_pressed_status(key.clone(), false);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
-        }
-    });
+        },
+    );
 
     let mut cpu = CPU::new(bus);
     cpu.reset();

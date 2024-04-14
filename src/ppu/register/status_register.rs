@@ -35,6 +35,9 @@ impl StatusRegister {
     pub fn new() -> Self {
         StatusRegister::from_bits_truncate(0)
     }
+    pub fn update(&mut self, value: u8) {
+        *self = StatusRegister::from_bits_truncate(value);
+    }
 
     pub fn update_sprite_overflow(&mut self, value: bool) {
         self.set(StatusRegister::SPRITE_OVERFLOW, value);
@@ -42,6 +45,10 @@ impl StatusRegister {
     pub fn update_sprite_0_hit(&mut self, value: bool) {
         self.set(StatusRegister::SPRITE_0_HIT, value);
     }
+    pub fn is_sprite_0_hit(&self) -> bool {
+        self.contains(StatusRegister::SPRITE_0_HIT)
+    }
+
     pub fn update_vertical_blank_started(&mut self, value: bool) {
         self.set(StatusRegister::VERTICAL_BLANK_STARTED, value);
     }
